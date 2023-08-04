@@ -2,6 +2,8 @@
 Program for calculating rotational constants from an xyz molecular geometry.
 Supports nonstandard isotopologues and will calculate internal rotation parameters for 1 methyl rotor.
 
+[![DOI](https://zenodo.org/badge/674807150.svg)](https://zenodo.org/badge/latestdoi/674807150)
+
 ### Installation and Requirements
 
 The program is self-contained in a single script: `moments.py`. On Mac/Linux, you can make the script executable and place in a directory contained in your `PATH` environment variable. The program requires only Python3, numpy, scipy, matplotlib, and pandas.
