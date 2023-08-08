@@ -16,7 +16,7 @@ The program is self-contained in a single script: `moments.py`. On Mac/Linux, yo
 - Quick help
 ```moments.py -h```
 
-- Basic usage, generates output files `examples/acetaldehyde.xyz-moments.csv` and `examples/acetaldehyde.xyz-coords.png`
+- Basic usage, generates output files `examples/acetaldehyde/acetaldehyde-moments.csv`, `examples/acetaldehyde/acetaldehyde-ab.png`, `examples/acetaldehyde/acetaldehyde-ac.png`, and `examples/acetaldehyde/acetaldehyde-bc.png`.
   
 ```moments.py examples/acetaldehyde/acetaldehyde.xyz```
 
