@@ -1,0 +1,75 @@
+param,value,unit,comment
+,examples/ac-ala-ome/ac-ala-ome.xyz,,
+A,2858.247979027603,MHz,PAM Rotational Constant
+B,631.6126884936764,MHz,PAM Rotational Constant
+C,561.0998168907669,MHz,PAM Rotational Constant
+A,0.0953408900976289,cm-1,PAM Rotational Constant
+B,0.02106833149530654,cm-1,PAM Rotational Constant
+C,0.018716275273701743,cm-1,PAM Rotational Constant
+Paa,762.0100067023552,amu A^2,PAM Second Moment
+Pbb,138.68358457682666,amu A^2,PAM Second Moment
+Pcc,38.13067816372461,amu A^2,PAM Second Moment
+Delta,-76.26135632744922,amu A^2,PAM Intertial Defect
+Rotor,"[0, 1, 2, 3]",,Atoms in rotor
+A (rotor),137318.3659162818,MHz,Rotational Constant of Rotor Atoms
+B (rotor),134013.511160247,MHz,Rotational Constant of Rotor Atoms
+C (rotor),80283.00269134458,MHz,Rotational Constant of Rotor Atoms
+A (rotor),4.58044764809533,cm-1,Rotational Constant of Rotor Atoms
+B (rotor),4.470209559449524,cm-1,Rotational Constant of Rotor Atoms
+C (rotor),2.677952715252916,cm-1,Rotational Constant of Rotor Atoms
+I_alpha,6.294968949833785,amu A^2,Rotor Moment of Inertia
+lambda_a,-0.7346007226780092,,Direction Cosine of Rotor
+lambda_b,0.6629608055501782,,Direction Cosine of Rotor
+lambda_c,-0.1443771053360101,,Direction Cosine of Rotor
+rho_a,-0.02615336946301094,,Component of rho Axis
+rho_b,0.005215729889542682,,Component of rho Axis
+rho_c,-0.0010090550259898043,,Component of rho Axis
+r,0.9771842069591267,,r Parameter for F Calculation
+rho_Ra,-0.0,rad,Rotation Angle for PAM-RAM Transformation
+rho_Rb,0.03781007460465342,rad,Rotation Angle for PAM-RAM Transformation
+rho_Rc,0.19543744509659888,rad,Rotation Angle for PAM-RAM Transformation
+rho_Ra,-0.0,deg,Rotation Angle for PAM-RAM Transformation
+rho_Rb,2.1663576979214154,deg,Rotation Angle for PAM-RAM Transformation
+rho_Rc,11.197740762854862,deg,Rotation Angle for PAM-RAM Transformation
+theta_a,0.6784996523513822,rad,Total Rotaton Angle between Rotor and Principal Axis
+theta_b,0.7486541059155813,rad,Total Rotaton Angle between Rotor and Principal Axis
+theta_c,0.9895227392307843,rad,Total Rotaton Angle between Rotor and Principal Axis
+theta_a,38.87516648082781,deg,Total Rotaton Angle between Rotor and Principal Axis
+theta_b,42.89472058410293,deg,Total Rotaton Angle between Rotor and Principal Axis
+theta_c,56.69547669014827,deg,Total Rotaton Angle between Rotor and Principal Axis
+rho,0.026687464559131454,,Magnitude of rho Vector
+F,82157.49100282238,MHz,Torsion-Rotational Constant
+A_ram,2801.805124753998,MHz,RAM Rotational Constant
+B_ram,619.5899932461896,MHz,RAM Rotational Constant
+C_ram,560.7000649000946,MHz,RAM Rotational Constant
+D_ab,554.9268030733303,MHz,RAM Off-Diagonal Rotational Constant
+D_bc,2.3259565434443856,MHz,RAM Off-Diagonal Rotational Constant
+D_ac,-107.3582588738496,MHz,RAM Off-Diagonal Rotational Constant
+F,2.7404789150106765,cm-1,Torsion-Rotational Constant
+A_ram,0.09345815913601128,cm-1,RAM Rotational Constant
+B_ram,0.020667297549099437,cm-1,RAM Rotational Constant
+C_ram,0.018702940982594517,cm-1,RAM Rotational Constant
+D_ab,0.018510365696835854,cm-1,RAM Off-Diagonal Rotational Constant
+D_bc,7.758555898842477e-05,cm-1,RAM Off-Diagonal Rotational Constant
+D_ac,-0.0035810860483304623,cm-1,RAM Off-Diagonal Rotational Constant
+C0,13.00335483534,amu,"3.26002281,-1.03923327,0.06897338"
+H1,2.014101777844,amu,"4.02786868,-0.61037148,0.70809529"
+H2,2.014101777844,amu,"2.86987948,-1.94234290,0.53140325"
+H3,2.014101777844,amu,"3.72536335,-1.29185979,-0.88076597"
+C4,12.0,amu,"2.20202543,0.00798631,-0.17950039"
+N5,14.00307400425,amu,"0.94206942,-0.33380347,0.19719354"
+H6,1.007825031898,amu,"0.72214271,-1.26028836,0.52505907"
+O7,15.99491461926,amu,"2.45939472,1.09626078,-0.68167535"
+C8,12.0,amu,"-0.16911652,0.55241039,-0.04645307"
+H9,1.007825031898,amu,"-0.06781681,0.98716028,-1.04168240"
+C10,12.0,amu,"-1.42922668,-0.27969545,-0.00158294"
+O11,15.99491461926,amu,"-1.48483724,-1.43165925,0.37591782"
+O12,15.99491461926,amu,"-2.49009160,0.43037986,-0.40594868"
+C13,12.0,amu,"-3.73355566,-0.28716483,-0.34730453"
+H14,1.007825031898,amu,"-4.48518948,0.40904535,-0.69843663"
+H15,1.007825031898,amu,"-3.94188179,-0.59753734,0.67266696"
+H16,1.007825031898,amu,"-3.69253167,-1.16471817,-0.98614146"
+C17,12.0,amu,"-0.23942245,1.68446630,0.97829571"
+H18,1.007825031898,amu,"0.68913334,2.24721785,0.93564400"
+H19,1.007825031898,amu,"-0.36283246,1.27360262,1.97949861"
+H20,1.007825031898,amu,"-1.07221039,2.34822395,0.75810724"

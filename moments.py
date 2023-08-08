@@ -39,7 +39,7 @@ def readjmol(f,isotopes = None):
 
 def calc_I(coords,masses):
     #ensure we're in COM frame
-    coords -= np.sum(np.multiply(masses[:,np.newaxis],coords),axis=0)/np.sum(masses)
+    coords -= com(coords,masses)
     I = np.zeros((3,3))
     I[0,0] = np.sum((coords[:,1]**2.0+coords[:,2]**2.0)*masses[np.newaxis,:])
     I[1,1] = np.sum((coords[:,0]**2.0+coords[:,2]**2.0)*masses[np.newaxis,:])
@@ -52,12 +52,18 @@ def calc_I(coords,masses):
     I[2,1] = I[1,2]
     return I
 
+def com(coords,masses):
+    return np.sum(np.multiply(masses[:,np.newaxis],coords),axis=0)/np.sum(masses)
+
 def abc(coords,masses):
     I = calc_I(coords,masses)
     pmoi,pax = la.eigh(I)
     _, _, rot = np.linalg.svd(I)
     rc = amuMHz/pmoi
     return rc,pmoi,pax,rot
+
+def distance(c1,c2):
+    return np.sqrt(np.sum((c1-c2)**2,axis=-1))
 
 #adapted from Kelvin Lee's PyMoments program
 def rotate_coordinates(coords: np.ndarray, axis_coords: np.ndarray) -> np.ndarray:
@@ -84,87 +90,189 @@ def rotate_coordinates(coords: np.ndarray, axis_coords: np.ndarray) -> np.ndarra
     # transform the coordinates into the principal axis
     return r_mat.apply(coords)
 
-def moments_calc(xyzfile,ch3_atoms=None,isotopes=None,quiet=False,noplots=False,outfile=None,plotfile=None,bohr=False,molname=None):
+def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=False,outfile=None,plotfile=None,bohr=False,molname=None):
+    """
+    Computes spectroscopic parameters from atomic coordinates
+    with up to one internal rotor.
+    
+    Generates a csv file containing the parameters and figures
+    showing molecular geometry and rotor axes.
+
+    Parameters
+    ----------
+    xyzfile : string
+        File containing elements and xyz coordinates
+    rotor_atoms : array-like (1D)
+        Indices of rotor atoms.
+    isotopes : dict
+        Dictionary containing nonstandard isotope mass numbers.
+        Keys are atom indices, values are desired mass numbers.
+    quiet : bool
+        If true, text output is not printed
+    noplots : bool
+        If true, no figures are generated
+    outfile : string
+        If provided, the output csv file will be named [outfile].csv.
+    plotfile : string
+        If provided, the output plot files will be named [plotfile]-ab.png etc
+    bohr : bool
+        If true, coordinates in xyzfile are converted from Bohr to Angstrom
+    molname : string
+        If provided, this is used as the molecule name instead of the second
+        line of the input file (or the name of the input file if that line is
+        blank)
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing spectroscopic parameters and atomic masses/coordinates
+    list
+        List containing the three Figure objects. If noplots is True, list is empty
+    list
+        List containing the three Axes objects. If noplots is True, list is empty
+    """
+    
     #read in coordinates from jmol like file
-    df = pd.DataFrame(columns=['param','value','unit'])
+    df = pd.DataFrame(columns=['param','value','unit','comment'])
     name,a,m,c = readjmol(xyzfile,isotopes)
     if molname is not None:
         name = molname
     if bohr:
         c *= spc.physical_constants['Bohr radius'][0]*1e10
         
-    if not quiet:
-        print('Initial coordinates')
-        print(f'Atom   Mass      X (A)       Y (A)       Z (A)')
-        for aa,mm,cc in zip(a,m,c):
-            print(f'{aa:<4} {mm: >10.6f} {cc[0]: 1.8f} {cc[1]: 1.8f} {cc[2]: 1.8f}')
-        
     #compute PAM quantities
     rc,pmoi,pax,rot = abc(c,m)
-    pcoords = rotate_coordinates(c,rot[::-1])
+    pcoords = rotate_coordinates(c,rot)
     
+    #ensure pcoords is in order a,b,c
+    pi = []
+    pi.append(np.sum(m*(pcoords[:,1]**2 + pcoords[:,2]**2)))
+    pi.append(np.sum(m*(pcoords[:,2]**2 + pcoords[:,0]**2)))
+    pi.append(np.sum(m*(pcoords[:,0]**2 + pcoords[:,1]**2)))
+    pcoords = pcoords[:,np.argsort(pi)]
+        
+     
+    distance_matrix = distance(pcoords[None,:,:],pcoords[:,None,:])
+    vdw = np.asarray([elements[x]['vdw'] for x in a])
+    bond_distance_matrix = np.maximum(vdw[None,:],vdw[:,None])
+    bond_matrix = distance_matrix < bond_distance_matrix
+    
+        
+    df.loc[len(df)] = ['',name,'','']
+    df.loc[len(df)] = ['A',rc[0],'MHz','PAM Rotational Constant']
+    df.loc[len(df)] = ['B',rc[1],'MHz','PAM Rotational Constant']
+    df.loc[len(df)] = ['C',rc[2],'MHz','PAM Rotational Constant']
+    df.loc[len(df)] = ['A',rc[0]/29979.2458,'cm-1','PAM Rotational Constant']
+    df.loc[len(df)] = ['B',rc[1]/29979.2458,'cm-1','PAM Rotational Constant']
+    df.loc[len(df)] = ['C',rc[2]/29979.2458,'cm-1','PAM Rotational Constant']
+    df.loc[len(df)] = ['Paa',(pmoi[1]+pmoi[2]-pmoi[0])/2,'amu A^2','PAM Second Moment']
+    df.loc[len(df)] = ['Pbb',(pmoi[2]+pmoi[0]-pmoi[1])/2,'amu A^2','PAM Second Moment']
+    df.loc[len(df)] = ['Pcc',(pmoi[0]+pmoi[1]-pmoi[2])/2,'amu A^2','PAM Second Moment']
+    df.loc[len(df)] = ['Delta',pmoi[2]-pmoi[1]-pmoi[0],'amu A^2','PAM Intertial Defect']
+    
+
     if not quiet:
+        print('Initial coordinates')
+        print(f'Atom   Mass        X (A)         Y (A)         Z (A)')
+        for aa,mm,cc in zip(a,m,c):
+            print(f'{aa:<4} {mm: >10.6f} {cc[0]: 13.8f} {cc[1]: 13.8f} {cc[2]: 13.8f}')
         #note that pcoords is in order (a,b,c)
         print('\nPrincipal Axis Coordinates')
-        print(f'Atom   Mass       a (A)       b (A)       c (A)')
+        print(f'Atom   Mass        a (A)         b (A)         c (A)')
         for aa,mm,cc in zip(a,m,pcoords):
-            print(f'{aa:<4} {mm: >10.6f} {cc[0]: 1.8f} {cc[1]: 1.8f} {cc[2]: 1.8f}')
+            print(f'{aa:<4} {mm: >10.6f} {cc[0]: 13.8f} {cc[1]: 13.8f} {cc[2]: 13.8f}')
+            
+        print('\nInteratomic Distance Matrix (A)')
+        for a1 in range(len(a)//10 + 1):
+            print("")
+            cols = a[10*a1:10*a1+10]
+            colstr = "      "
+            for i,x in enumerate(cols):
+                colstr += f'{x+str(10*a1+i): ^7}'
+            print(colstr)
+            for i,(x,row) in enumerate(zip(a,distance_matrix)):
+                rowstr = f"{x+str(i): <5}"
+                for d in row[10*a1:10*a1+10]:
+                    rowstr += f' {d:6.3f}'
+                print(rowstr)
 
         print('\nPrincipal Axis Rotational Constants')
-        print(f'A {rc[0]: >12.4f} MHz')
-        print(f'B {rc[1]: >12.4f} MHz')
-        print(f'C {rc[2]: >12.4f} MHz')
+        print(f'A      {rc[0]: >12.4f} MHz')
+        print(f'B      {rc[1]: >12.4f} MHz')
+        print(f'C      {rc[2]: >12.4f} MHz')
         print(f'------------------------')
-        print(f'A {rc[0]/29979.2458: >12.9f} cm-1')
-        print(f'B {rc[1]/29979.2458: >12.9f} cm-1')
-        print(f'C {rc[2]/29979.2458: >12.9f} cm-1')
-        print(f'\nInertial Defect: {pmoi[2]-pmoi[1]-pmoi[0]: >12.9f} amu A^2')
-    
-    df.loc[len(df)] = ['',name,'']
-    df.loc[len(df)] = ['A',rc[0],'MHz']
-    df.loc[len(df)] = ['B',rc[1],'MHz']
-    df.loc[len(df)] = ['C',rc[2],'MHz']
-    df.loc[len(df)] = ['A',rc[0]/29979.2458,'cm-1']
-    df.loc[len(df)] = ['B',rc[1]/29979.2458,'cm-1']
-    df.loc[len(df)] = ['C',rc[2]/29979.2458,'cm-1']
-    df.loc[len(df)] = ['ID',pmoi[2]-pmoi[1]-pmoi[0],'amu A^2']
-    
-    
-    
-    
+        print(f'A      {rc[0]/29979.2458: >12.9f} cm-1')
+        print(f'B      {rc[1]/29979.2458: >12.9f} cm-1')
+        print(f'C      {rc[2]/29979.2458: >12.9f} cm-1')
+        
+        print('\nSecond moments and Inertial Defect')
+        print(f'Paa    {(pmoi[1]+pmoi[2]-pmoi[0])/2: >15.9f} amu A^2')
+        print(f'Pbb    {(pmoi[2]+pmoi[0]-pmoi[1])/2: >15.9f} amu A^2')
+        print(f'Pcc    {(pmoi[0]+pmoi[1]-pmoi[2])/2: >15.9f} amu A^2')
+        print(f'Delta  {pmoi[2]-pmoi[1]-pmoi[0]: >15.9f} amu A^2')
+       
     if not noplots:
-        fig,axes = plt.subplots(1,3,figsize=(18,4),dpi=300)
+        fig0,ax0 = plt.subplots(figsize=(6*2,4*2),dpi=300)
+        fig1,ax1 = plt.subplots(figsize=(6*2,4*2),dpi=300)
+        fig2,ax2 = plt.subplots(figsize=(6*2,4*2),dpi=300)
+        axes = [ax0,ax1,ax2]
+        mina = np.min(pcoords[:,0])
+        minb = np.min(pcoords[:,1])
+        minc = np.min(pcoords[:,2])
 
-        axes[0].scatter(pcoords[:,0],pcoords[:,1])
-        axes[1].scatter(pcoords[:,0],pcoords[:,2])
-        axes[2].scatter(pcoords[:,1],pcoords[:,2])
-        for i,(atom,cc) in enumerate(zip(a,pcoords)):
-            axes[0].annotate(f'{atom}{i}',xy=(cc[0],cc[1]))
-            axes[1].annotate(f'{atom}{i}',xy=(cc[0],cc[2]))
-            axes[2].annotate(f'{atom}{i}',xy=(cc[1],cc[2]))
+        a_text = 12-((np.max(pcoords[:,0])-mina)//3)
+        b_text = 12-((np.max(pcoords[:,1])-minb)//3)
+        c_text = 12-((np.max(pcoords[:,2])-minc)//3)
 
-        axes[0].set_xlabel('a (A)',loc='right')
-        axes[0].set_ylabel('b (A)',loc='top')
-        axes[1].set_xlabel('a (A)',loc='right')
-        axes[1].set_ylabel('c (A)',loc='top')
-        axes[2].set_xlabel('b (A)',loc='right')
-        axes[2].set_ylabel('c (A)',loc='top')
+
+        for i,(atom,(aa,bb,cc)) in enumerate(zip(a,pcoords[:])):
+            ax0.add_patch(plt.Circle((aa,bb),elements[atom]['vdw']/6,color=elements[atom]['color'],ec='black',zorder=(cc+minc)+100))
+            ax0.annotate(f'{atom}{i}',xy=(aa,bb),ha='center',va='center',zorder=(cc+minc)+100,fontsize=max(a_text,b_text))
+            ax1.add_patch(plt.Circle((aa,cc),elements[atom]['vdw']/6,color=elements[atom]['color'],ec='black',zorder=-(bb+minb)+100))
+            ax1.annotate(f'{atom}{i}',xy=(aa,cc),ha='center',va='center',zorder=-(bb+minb)+100,fontsize=max(a_text,c_text))
+            ax2.add_patch(plt.Circle((bb,cc),elements[atom]['vdw']/6,color=elements[atom]['color'],ec='black',zorder=(aa+mina)+100))
+            ax2.annotate(f'{atom}{i}',xy=(bb,cc),ha='center',va='center',zorder=(aa+mina)+100,fontsize=max(b_text,c_text))
+        for i in range(len(a)):
+            for j in range(i,len(a)):
+                if bond_matrix[i,j]:
+                    aa1 = pcoords[i,0]
+                    bb1 = pcoords[i,1]
+                    cc1 = pcoords[i,2]
+                    aa2 = pcoords[j,0]
+                    bb2 = pcoords[j,1]
+                    cc2 = pcoords[j,2]
+                    ax0.plot([aa1,aa2],[bb1,bb2],color='black',zorder=min(cc1,cc2)+minc+99.9)
+                    ax1.plot([aa1,aa2],[cc1,cc2],color='black',zorder=min(bb1,bb2)+minb+99.9)
+                    ax2.plot([bb1,bb2],[cc1,cc2],color='black',zorder=min(aa1,aa2)+mina+99.9)
+
+        ax0.set_xlabel('a (A)',loc='right')
+        ax0.set_ylabel('b (A)',loc='top')
+        ax1.set_xlabel('a (A)',loc='right')
+        ax1.set_ylabel('c (A)',loc='top')
+        ax2.set_xlabel('b (A)',loc='right')
+        ax2.set_ylabel('c (A)',loc='top')
 
         for ax in axes:
+            ax.set_aspect('equal')
+            ax.tick_params(axis='both',direction='inout',zorder=-1,grid_color='k',grid_alpha=0.3,grid_linestyle=':',grid_zorder=-1)
+            ax.grid()
             ax.spines['left'].set_position('zero')
+            ax.spines['left'].set_zorder(-1)
             ax.spines['bottom'].set_position('zero')
+            ax.spines['bottom'].set_zorder(-1)
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
-            ax.set_aspect('equal')
     
-    if ch3_atoms is not None:
+    if rotor_atoms is not None:
         if not quiet:
-            print(f'\nCH3 atoms: {str(ch3_atoms)}')
+            print(f'\nRotor atoms: {str(rotor_atoms)}')
     
         #extract atoms in the CH3 group
-        cha = a[ch3_atoms]
-        chm = m[ch3_atoms]
-        chc = pcoords[ch3_atoms]
+        cha = a[rotor_atoms]
+        chm = m[rotor_atoms]
+        chc = pcoords[rotor_atoms]
+        chc_orig = chc.copy()
+        ch_com = com(chc,chm)
 
         crc, cmoi, cpax, crot = abc(chc,chm)
         i_alpha = cmoi[2] #methyl MOI
@@ -177,10 +285,59 @@ def moments_calc(xyzfile,ch3_atoms=None,isotopes=None,quiet=False,noplots=False,
         rot_vec = np.cross(np.asarray([1,0,0]),rho_norm)
         ram_rot = R.from_rotvec(rot_vec)
         ram_rc = ram_rot.apply(np.eye(3)*rc)
+        
+        iam_vec_a = np.cross(np.asarray([1,0,0]),cpax[:,2])
+        iam_rot_a = R.from_rotvec(iam_vec_a)
+        iam_vec_b = np.cross(np.asarray([0,1,0]),cpax[:,2])
+        iam_rot_b = R.from_rotvec(iam_vec_b)
+        iam_vec_c = np.cross(np.asarray([0,0,1]),cpax[:,2])
+        iam_rot_c = R.from_rotvec(iam_vec_c)
 
-
+        df.loc[len(df)] = ['Rotor',rotor_atoms,'','Atoms in rotor']
+        df.loc[len(df)] = ['A (rotor)',crc[0],'MHz','Rotational Constant of Rotor Atoms']
+        df.loc[len(df)] = ['B (rotor)',crc[1],'MHz','Rotational Constant of Rotor Atoms']
+        df.loc[len(df)] = ['C (rotor)',crc[2],'MHz','Rotational Constant of Rotor Atoms']
+        df.loc[len(df)] = ['A (rotor)',crc[0]/29979.2458,'cm-1','Rotational Constant of Rotor Atoms']
+        df.loc[len(df)] = ['B (rotor)',crc[1]/29979.2458,'cm-1','Rotational Constant of Rotor Atoms']
+        df.loc[len(df)] = ['C (rotor)',crc[2]/29979.2458,'cm-1','Rotational Constant of Rotor Atoms']
+        df.loc[len(df)] = ['I_alpha',i_alpha,'amu A^2','Rotor Moment of Inertia']
+        df.loc[len(df)] = ['lambda_a',cpax[0,2],'','Direction Cosine of Rotor']
+        df.loc[len(df)] = ['lambda_b',cpax[1,2],'','Direction Cosine of Rotor']
+        df.loc[len(df)] = ['lambda_c',cpax[2,2],'','Direction Cosine of Rotor']
+        df.loc[len(df)] = ['rho_a',rho[0],'','Component of rho Axis']
+        df.loc[len(df)] = ['rho_b',rho[1],'','Component of rho Axis']
+        df.loc[len(df)] = ['rho_c',rho[2],'','Component of rho Axis']
+        df.loc[len(df)] = ['r',r,'','r Parameter for F Calculation' ]
+        df.loc[len(df)] = ['rho_Ra',rot_vec[0],'rad','Rotation Angle for PAM-RAM Transformation']
+        df.loc[len(df)] = ['rho_Rb',rot_vec[1],'rad','Rotation Angle for PAM-RAM Transformation']
+        df.loc[len(df)] = ['rho_Rc',rot_vec[2],'rad','Rotation Angle for PAM-RAM Transformation']
+        df.loc[len(df)] = ['rho_Ra',rot_vec[0]*180/np.pi,'deg','Rotation Angle for PAM-RAM Transformation']
+        df.loc[len(df)] = ['rho_Rb',rot_vec[1]*180/np.pi,'deg','Rotation Angle for PAM-RAM Transformation']
+        df.loc[len(df)] = ['rho_Rc',rot_vec[2]*180/np.pi,'deg','Rotation Angle for PAM-RAM Transformation']
+        df.loc[len(df)] = ['theta_a',iam_rot_a.magnitude(),'rad','Total Rotaton Angle between Rotor and Principal Axis']
+        df.loc[len(df)] = ['theta_b',iam_rot_b.magnitude(),'rad','Total Rotaton Angle between Rotor and Principal Axis']
+        df.loc[len(df)] = ['theta_c',iam_rot_c.magnitude(),'rad','Total Rotaton Angle between Rotor and Principal Axis']
+        df.loc[len(df)] = ['theta_a',iam_rot_a.magnitude()*180/np.pi,'deg','Total Rotaton Angle between Rotor and Principal Axis']
+        df.loc[len(df)] = ['theta_b',iam_rot_b.magnitude()*180/np.pi,'deg','Total Rotaton Angle between Rotor and Principal Axis']
+        df.loc[len(df)] = ['theta_c',iam_rot_c.magnitude()*180/np.pi,'deg','Total Rotaton Angle between Rotor and Principal Axis']
+        df.loc[len(df)] = ['rho',np.sqrt(np.sum(rho**2)),'','Magnitude of rho Vector']
+        df.loc[len(df)] = ['F',F,'MHz','Torsion-Rotational Constant']
+        df.loc[len(df)] = ['A_ram',ram_rc[0,0],'MHz','RAM Rotational Constant']
+        df.loc[len(df)] = ['B_ram',ram_rc[1,1],'MHz','RAM Rotational Constant']
+        df.loc[len(df)] = ['C_ram',ram_rc[2,2],'MHz','RAM Rotational Constant']
+        df.loc[len(df)] = ['D_ab',ram_rc[0,1],'MHz','RAM Off-Diagonal Rotational Constant']
+        df.loc[len(df)] = ['D_bc',ram_rc[1,2],'MHz','RAM Off-Diagonal Rotational Constant']
+        df.loc[len(df)] = ['D_ac',ram_rc[0,2],'MHz','RAM Off-Diagonal Rotational Constant']
+        df.loc[len(df)] = ['F',F/29979.2458,'cm-1','Torsion-Rotational Constant']
+        df.loc[len(df)] = ['A_ram',ram_rc[0,0]/29979.2458,'cm-1','RAM Rotational Constant']
+        df.loc[len(df)] = ['B_ram',ram_rc[1,1]/29979.2458,'cm-1','RAM Rotational Constant']
+        df.loc[len(df)] = ['C_ram',ram_rc[2,2]/29979.2458,'cm-1','RAM Rotational Constant']
+        df.loc[len(df)] = ['D_ab',ram_rc[0,1]/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
+        df.loc[len(df)] = ['D_bc',ram_rc[1,2]/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
+        df.loc[len(df)] = ['D_ac',ram_rc[0,2]/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
+        
         if not quiet:
-            print('\nCH3 Rotational Constants')
+            print('\nRotor Rotational Constants')
             print(f'A {crc[0]: >12.4f} MHz')
             print(f'B {crc[1]: >12.4f} MHz')
             print(f'C {crc[2]: >12.4f} MHz')
@@ -189,48 +346,19 @@ def moments_calc(xyzfile,ch3_atoms=None,isotopes=None,quiet=False,noplots=False,
             print(f'B {crc[1]/29979.2458: >12.9f} cm-1')
             print(f'C {crc[2]/29979.2458: >12.9f} cm-1')
             print(f'\nI_alpha = {i_alpha:.6f}')
-            print('\nCH3 Axis')
+            print('\nRotor Axis')
             print(f'lambda_a   {cpax[0,2]: 10.7f}')
             print(f'lambda_b   {cpax[1,2]: 10.7f}')
             print(f'lambda_c   {cpax[2,2]: 10.7f}')
-        
-        df.loc[len(df)] = ['A (CH3)',crc[0],'MHz']
-        df.loc[len(df)] = ['B (CH3)',crc[1],'MHz']
-        df.loc[len(df)] = ['C (CH3)',crc[2],'MHz']
-        df.loc[len(df)] = ['A (CH3)',crc[0]/29979.2458,'cm-1']
-        df.loc[len(df)] = ['B (CH3)',crc[1]/29979.2458,'cm-1']
-        df.loc[len(df)] = ['C (CH3)',crc[2]/29979.2458,'cm-1']
-        df.loc[len(df)] = ['I_alpha',i_alpha,'amu A^2']
-        df.loc[len(df)] = ['lambda_a',cpax[0,2],'']
-        df.loc[len(df)] = ['lambda_b',cpax[1,2],'']
-        df.loc[len(df)] = ['lambda_c',cpax[2,2],'']
-        df.loc[len(df)] = ['rho_a',rho[0],'']
-        df.loc[len(df)] = ['rho_b',rho[1],'']
-        df.loc[len(df)] = ['rho_c',rho[2],'']
-        df.loc[len(df)] = ['r',r,'']
-        df.loc[len(df)] = ['Ra',rot_vec[0],'rad']
-        df.loc[len(df)] = ['Rb',rot_vec[1],'rad']
-        df.loc[len(df)] = ['Rc',rot_vec[2],'rad']
-        df.loc[len(df)] = ['Ra',rot_vec[0]*180/np.pi,'deg']
-        df.loc[len(df)] = ['Rb',rot_vec[1]*180/np.pi,'deg']
-        df.loc[len(df)] = ['Rc',rot_vec[2]*180/np.pi,'deg']
-        df.loc[len(df)] = ['rho',np.sqrt(np.sum(rho**2)),'']
-        df.loc[len(df)] = ['F',F,'MHz']
-        df.loc[len(df)] = ['A_ram',ram_rc[0,0],'MHz']
-        df.loc[len(df)] = ['B_ram',ram_rc[1,1],'MHz']
-        df.loc[len(df)] = ['C_ram',ram_rc[2,2],'MHz']
-        df.loc[len(df)] = ['D_ab',ram_rc[0,1],'MHz']
-        df.loc[len(df)] = ['D_bc',ram_rc[1,2],'MHz']
-        df.loc[len(df)] = ['D_ac',ram_rc[0,2],'MHz']
-        df.loc[len(df)] = ['F',F/29979.2458,'cm-1']
-        df.loc[len(df)] = ['A_ram',ram_rc[0,0]/29979.2458,'cm-1']
-        df.loc[len(df)] = ['B_ram',ram_rc[1,1]/29979.2458,'cm-1']
-        df.loc[len(df)] = ['C_ram',ram_rc[2,2]/29979.2458,'cm-1']
-        df.loc[len(df)] = ['D_ab',ram_rc[0,1]/29979.2458,'cm-1']
-        df.loc[len(df)] = ['D_bc',ram_rc[1,2]/29979.2458,'cm-1']
-        df.loc[len(df)] = ['D_ac',ram_rc[0,2]/29979.2458,'cm-1']
+            print(f'\nRotor Axis angle with respect to principal axes')
+            print(f'theta_a    {iam_rot_a.magnitude():>10.7f} rad')
+            print(f'theta_b    {iam_rot_b.magnitude():>10.7f} rad')
+            print(f'theta_c    {iam_rot_c.magnitude():>10.7f} rad')
+            print(f'------------------------')
+            print(f'theta_a    {iam_rot_a.magnitude()*180/np.pi:>10.5f} deg')
+            print(f'theta_b    {iam_rot_b.magnitude()*180/np.pi:>10.5f} deg')
+            print(f'theta_c    {iam_rot_c.magnitude()*180/np.pi:>10.5f} deg')
 
-        if not quiet:
             print('\nrho Axis')
             print(f'rho_a      {rho[0]: 10.7f}')
             print(f'rho_b      {rho[1]: 10.7f}')
@@ -265,35 +393,55 @@ def moments_calc(xyzfile,ch3_atoms=None,isotopes=None,quiet=False,noplots=False,
             print(f'D_ac      {ram_rc[0,2]/29979.2458: >12.9f} cm-1')
         
         if not noplots:
-            axes[0].plot([-rho_norm[0],rho_norm[0]],[-rho_norm[1],rho_norm[1]],color='red',label=r'$\rho$')
-            axes[1].plot([-rho_norm[0],rho_norm[0]],[-rho_norm[2],rho_norm[2]],color='red',label=r'$\rho$')
-            axes[2].plot([-rho_norm[1],rho_norm[1]],[-rho_norm[2],rho_norm[2]],color='red',label=r'$\rho$')
-            ax.legend(frameon=False)
+            mins = [mina,minb,minc]
+        
+            for ax,i1,i2,i3 in zip(axes,[0,0,1],[1,2,2],[2,1,0]):
+                xmin,xmax = ax.get_xlim()
+                ymin,ymax = ax.get_ylim()
+                mm = rho_norm[i2]/rho_norm[i1]
+                ax.plot([xmin,xmax],[mm*xmin,mm*xmax],color='red',label=r'$\rho$',zorder=mins[i3]+99.9)
+                mx0 = ch_com[i1]
+                my0 = ch_com[i2]
+                mslope = (cpax[i2,i3]/cpax[i1,i3])
+                if i3 == 1:
+                    mslope = mslope**-1
+                ax.plot([xmin,xmax],[mslope*(xmin-mx0)+my0,mslope*(xmax-mx0)+my0],color='blue',zorder=mins[i3]+99.9,label='Rotor axis')
+                ax.set_xlim(xmin,xmax)
+                ax.set_ylim(ymin,ymax)
+                ax.legend(frameon=False)
     
     for i,(sym,mass) in enumerate(zip(a,m)):
-        df.loc[len(df)] = [f'{sym}{i}',mass,'amu']
+        df.loc[len(df)] = [f'{sym}{i}',mass,'amu',f'{pcoords[i,0]:.8f},{pcoords[i,1]:.8f},{pcoords[i,2]:.8f}']
     
     if outfile is None:
-        outfile = xyzfile+"-moments.csv"
+        outfile = xyzfile.split('.')[0]+"-moments.csv"
     
     if not noplots:
         if plotfile is None:
-            plotfile = xyzfile+"-coords.png"
-        fig.savefig(plotfile,bbox_inches='tight')
+            plotfile = xyzfile.split('.')[0]
+        fig0.savefig(plotfile+"-ab.png",bbox_inches='tight')
+        fig1.savefig(plotfile+"-ac.png",bbox_inches='tight')
+        fig2.savefig(plotfile+"-bc.png",bbox_inches='tight')
         
     df.to_csv(outfile,index=False)
-    return df
+    if not noplots:
+        return df,[fig0,fig1,fig2],[ax0,ax1,ax2]
+    else:
+        return df,[],[]
     
     
 elements = {'H': {'default': 1,
+  'vdw': 1.1,
   'isotopes': {1: {'mass': 1.007825031898, 'abundance': 99.9855},
    2: {'mass': 2.014101777844, 'abundance': 0.0145},
    3: {'mass': 3.01604928132, 'abundance': None},
    4: {'mass': 4.026431867, 'abundance': None},
    5: {'mass': 5.035311492, 'abundance': None},
    6: {'mass': 6.044955437, 'abundance': None},
-   7: {'mass': 7.052749, 'abundance': None}}},
+   7: {'mass': 7.052749, 'abundance': None}},
+  'color': '#FFFFFF'},
  'He': {'default': 4,
+  'vdw': 1.4,
   'isotopes': {3: {'mass': 3.01602932197, 'abundance': 0.0002},
    4: {'mass': 4.00260325413, 'abundance': 99.9998},
    5: {'mass': 5.012057224, 'abundance': None},
@@ -301,8 +449,10 @@ elements = {'H': {'default': 1,
    7: {'mass': 7.027990652, 'abundance': None},
    8: {'mass': 8.033934388, 'abundance': None},
    9: {'mass': 9.043946414, 'abundance': None},
-   10: {'mass': 10.052815306, 'abundance': None}}},
+   10: {'mass': 10.052815306, 'abundance': None}},
+  'color': '#D9FFFF'},
  'Li': {'default': 7,
+  'vdw': 1.82,
   'isotopes': {3: {'mass': 3.030775, 'abundance': None},
    4: {'mass': 4.027185561, 'abundance': None},
    5: {'mass': 5.0125378, 'abundance': None},
@@ -313,8 +463,10 @@ elements = {'H': {'default': 1,
    10: {'mass': 10.035483453, 'abundance': None},
    11: {'mass': 11.043723581, 'abundance': None},
    12: {'mass': 12.052613942, 'abundance': None},
-   13: {'mass': 13.061171503, 'abundance': None}}},
+   13: {'mass': 13.061171503, 'abundance': None}},
+  'color': '#CC80FF'},
  'Be': {'default': 9,
+  'vdw': 1.53,
   'isotopes': {5: {'mass': 5.03987, 'abundance': None},
    6: {'mass': 6.019726409, 'abundance': None},
    7: {'mass': 7.016928714, 'abundance': None},
@@ -326,8 +478,10 @@ elements = {'H': {'default': 1,
    13: {'mass': 13.036134506, 'abundance': None},
    14: {'mass': 14.04289292, 'abundance': None},
    15: {'mass': 15.053490215, 'abundance': None},
-   16: {'mass': 16.061672036, 'abundance': None}}},
+   16: {'mass': 16.061672036, 'abundance': None}},
+  'color': '#C2FF00'},
  'B': {'default': 11,
+  'vdw': 1.92,
   'isotopes': {6: {'mass': 6.0508, 'abundance': None},
    7: {'mass': 7.029712, 'abundance': None},
    8: {'mass': 8.024607315, 'abundance': None},
@@ -343,8 +497,10 @@ elements = {'H': {'default': 1,
    18: {'mass': 18.055601683, 'abundance': None},
    19: {'mass': 19.064166, 'abundance': None},
    20: {'mass': 20.074505644, 'abundance': None},
-   21: {'mass': 21.084147485, 'abundance': None}}},
+   21: {'mass': 21.084147485, 'abundance': None}},
+  'color': '#FFB5B5'},
  'C': {'default': 12,
+  'vdw': 1.7,
   'isotopes': {8: {'mass': 8.037643039, 'abundance': None},
    9: {'mass': 9.031037202, 'abundance': None},
    10: {'mass': 10.016853217, 'abundance': None},
@@ -360,8 +516,10 @@ elements = {'H': {'default': 1,
    20: {'mass': 20.040261732, 'abundance': None},
    21: {'mass': 21.049, 'abundance': None},
    22: {'mass': 22.05755399, 'abundance': None},
-   23: {'mass': 23.06889, 'abundance': None}}},
+   23: {'mass': 23.06889, 'abundance': None}},
+  'color': '#909090'},
  'N': {'default': 14,
+  'vdw': 1.55,
   'isotopes': {10: {'mass': 10.04165354, 'abundance': None},
    11: {'mass': 11.026157593, 'abundance': None},
    12: {'mass': 12.01861318, 'abundance': None},
@@ -377,8 +535,10 @@ elements = {'H': {'default': 1,
    22: {'mass': 22.034100918, 'abundance': None},
    23: {'mass': 23.039421, 'abundance': None},
    24: {'mass': 24.05039, 'abundance': None},
-   25: {'mass': 25.0601, 'abundance': None}}},
+   25: {'mass': 25.0601, 'abundance': None}},
+  'color': '#3050F8'},
  'O': {'default': 16,
+  'vdw': 1.52,
   'isotopes': {11: {'mass': 11.051249828, 'abundance': None},
    12: {'mass': 12.034367726, 'abundance': None},
    13: {'mass': 13.024815435, 'abundance': None},
@@ -396,8 +556,10 @@ elements = {'H': {'default': 1,
    25: {'mass': 25.029338919, 'abundance': None},
    26: {'mass': 26.037210155, 'abundance': None},
    27: {'mass': 27.047955, 'abundance': None},
-   28: {'mass': 28.05591, 'abundance': None}}},
+   28: {'mass': 28.05591, 'abundance': None}},
+  'color': '#FF0D0D'},
  'F': {'default': 19,
+  'vdw': 1.47,
   'isotopes': {13: {'mass': 13.045121, 'abundance': None},
    14: {'mass': 14.034315196, 'abundance': None},
    15: {'mass': 15.017785139, 'abundance': None},
@@ -416,8 +578,10 @@ elements = {'H': {'default': 1,
    28: {'mass': 28.035860448, 'abundance': None},
    29: {'mass': 29.043103, 'abundance': None},
    30: {'mass': 30.052561, 'abundance': None},
-   31: {'mass': 31.061023, 'abundance': None}}},
+   31: {'mass': 31.061023, 'abundance': None}},
+  'color': '#90E050'},
  'Ne': {'default': 20,
+  'vdw': 1.54,
   'isotopes': {15: {'mass': 15.043172977, 'abundance': None},
    16: {'mass': 16.02575086, 'abundance': None},
    17: {'mass': 17.017713962, 'abundance': None},
@@ -437,8 +601,10 @@ elements = {'H': {'default': 1,
    31: {'mass': 31.033474816, 'abundance': None},
    32: {'mass': 32.03972, 'abundance': None},
    33: {'mass': 33.049523, 'abundance': None},
-   34: {'mass': 34.056728, 'abundance': None}}},
+   34: {'mass': 34.056728, 'abundance': None}},
+  'color': '#B3E3F5'},
  'Na': {'default': 23,
+  'vdw': 2.27,
   'isotopes': {17: {'mass': 17.037273, 'abundance': None},
    18: {'mass': 18.026879388, 'abundance': None},
    19: {'mass': 19.013880264, 'abundance': None},
@@ -461,8 +627,10 @@ elements = {'H': {'default': 1,
    36: {'mass': 36.049279, 'abundance': None},
    37: {'mass': 37.057042, 'abundance': None},
    38: {'mass': 38.066458, 'abundance': None},
-   39: {'mass': 39.075123, 'abundance': None}}},
+   39: {'mass': 39.075123, 'abundance': None}},
+  'color': '#AB5CF2'},
  'Mg': {'default': 24,
+  'vdw': 1.73,
   'isotopes': {19: {'mass': 19.03417992, 'abundance': None},
    20: {'mass': 20.018763075, 'abundance': None},
    21: {'mass': 21.011705764, 'abundance': None},
@@ -485,8 +653,10 @@ elements = {'H': {'default': 1,
    38: {'mass': 38.03658, 'abundance': None},
    39: {'mass': 39.045921, 'abundance': None},
    40: {'mass': 40.053194, 'abundance': None},
-   41: {'mass': 41.062373, 'abundance': None}}},
+   41: {'mass': 41.062373, 'abundance': None}},
+  'color': '#8AFF00'},
  'Al': {'default': 27,
+  'vdw': 1.84,
   'isotopes': {21: {'mass': 21.029082, 'abundance': None},
    22: {'mass': 22.01954, 'abundance': None},
    23: {'mass': 23.007244351, 'abundance': None},
@@ -509,8 +679,10 @@ elements = {'H': {'default': 1,
    40: {'mass': 40.03094, 'abundance': None},
    41: {'mass': 41.037134, 'abundance': None},
    42: {'mass': 42.045078, 'abundance': None},
-   43: {'mass': 43.05182, 'abundance': None}}},
+   43: {'mass': 43.05182, 'abundance': None}},
+  'color': '#BFA6A6'},
  'Si': {'default': 28,
+  'vdw': 2.1,
   'isotopes': {22: {'mass': 22.036114, 'abundance': None},
    23: {'mass': 23.025711, 'abundance': None},
    24: {'mass': 24.01153543, 'abundance': None},
@@ -534,8 +706,10 @@ elements = {'H': {'default': 1,
    42: {'mass': 42.018078, 'abundance': None},
    43: {'mass': 43.026119, 'abundance': None},
    44: {'mass': 44.031466, 'abundance': None},
-   45: {'mass': 45.039818, 'abundance': None}}},
+   45: {'mass': 45.039818, 'abundance': None}},
+  'color': '#F0C8A0'},
  'P': {'default': 31,
+  'vdw': 1.8,
   'isotopes': {24: {'mass': 24.036522, 'abundance': None},
    25: {'mass': 25.021675, 'abundance': None},
    26: {'mass': 26.01178, 'abundance': None},
@@ -559,8 +733,10 @@ elements = {'H': {'default': 1,
    44: {'mass': 44.011927, 'abundance': None},
    45: {'mass': 45.017134, 'abundance': None},
    46: {'mass': 46.02452, 'abundance': None},
-   47: {'mass': 47.030929, 'abundance': None}}},
+   47: {'mass': 47.030929, 'abundance': None}},
+  'color': '#FF8000'},
  'S': {'default': 32,
+  'vdw': 1.8,
   'isotopes': {26: {'mass': 26.029716, 'abundance': None},
    27: {'mass': 27.018777, 'abundance': None},
    28: {'mass': 28.004372762, 'abundance': None},
@@ -584,8 +760,10 @@ elements = {'H': {'default': 1,
    46: {'mass': 46.000687, 'abundance': None},
    47: {'mass': 47.00773, 'abundance': None},
    48: {'mass': 48.013301, 'abundance': None},
-   49: {'mass': 49.021891, 'abundance': None}}},
+   49: {'mass': 49.021891, 'abundance': None}},
+  'color': '#FFFF30'},
  'Cl': {'default': 35,
+  'vdw': 1.75,
   'isotopes': {28: {'mass': 28.030349, 'abundance': None},
    29: {'mass': 29.015053, 'abundance': None},
    30: {'mass': 30.005018333, 'abundance': None},
@@ -610,8 +788,10 @@ elements = {'H': {'default': 1,
    49: {'mass': 49.000794, 'abundance': None},
    50: {'mass': 50.008266, 'abundance': None},
    51: {'mass': 51.015341, 'abundance': None},
-   52: {'mass': 52.024004, 'abundance': None}}},
+   52: {'mass': 52.024004, 'abundance': None}},
+  'color': '#1FF01F'},
  'Ar': {'default': 40,
+  'vdw': 1.88,
   'isotopes': {29: {'mass': 29.040761, 'abundance': None},
    30: {'mass': 30.023694, 'abundance': None},
    31: {'mass': 31.012158, 'abundance': None},
@@ -637,8 +817,10 @@ elements = {'H': {'default': 1,
    51: {'mass': 50.993033, 'abundance': None},
    52: {'mass': 51.998519, 'abundance': None},
    53: {'mass': 53.00729, 'abundance': None},
-   54: {'mass': 54.013484, 'abundance': None}}},
+   54: {'mass': 54.013484, 'abundance': None}},
+  'color': '#80D1E3'},
  'K': {'default': 39,
+  'vdw': 2.75,
   'isotopes': {31: {'mass': 31.03678, 'abundance': None},
    32: {'mass': 32.023607, 'abundance': None},
    33: {'mass': 33.008095, 'abundance': None},
@@ -667,8 +849,10 @@ elements = {'H': {'default': 1,
    56: {'mass': 56.008567, 'abundance': None},
    57: {'mass': 57.015169, 'abundance': None},
    58: {'mass': 58.023543, 'abundance': None},
-   59: {'mass': 59.030864, 'abundance': None}}},
+   59: {'mass': 59.030864, 'abundance': None}},
+  'color': '#8F40D4'},
  'Ca': {'default': 40,
+  'vdw': 2.31,
   'isotopes': {33: {'mass': 33.033312, 'abundance': None},
    34: {'mass': 34.015985, 'abundance': None},
    35: {'mass': 35.005572, 'abundance': None},
@@ -697,8 +881,10 @@ elements = {'H': {'default': 1,
    58: {'mass': 57.998357, 'abundance': None},
    59: {'mass': 59.006237, 'abundance': None},
    60: {'mass': 60.011809, 'abundance': None},
-   61: {'mass': 61.020408, 'abundance': None}}},
+   61: {'mass': 61.020408, 'abundance': None}},
+  'color': '#3DFF00'},
  'Sc': {'default': 45,
+  'vdw': 2.15,
   'isotopes': {35: {'mass': 35.029093, 'abundance': None},
    36: {'mass': 36.017338, 'abundance': None},
    37: {'mass': 37.004058, 'abundance': None},
@@ -727,8 +913,10 @@ elements = {'H': {'default': 1,
    60: {'mass': 59.995115, 'abundance': None},
    61: {'mass': 61.000537, 'abundance': None},
    62: {'mass': 62.007848, 'abundance': None},
-   63: {'mass': 63.014031, 'abundance': None}}},
+   63: {'mass': 63.014031, 'abundance': None}},
+  'color': '#E6E6E6'},
  'Ti': {'default': 48,
+  'vdw': 2.11,
   'isotopes': {37: {'mass': 37.027021, 'abundance': None},
    38: {'mass': 38.012206, 'abundance': None},
    39: {'mass': 39.002684, 'abundance': None},
@@ -757,8 +945,10 @@ elements = {'H': {'default': 1,
    62: {'mass': 61.986903, 'abundance': None},
    63: {'mass': 62.993709, 'abundance': None},
    64: {'mass': 63.998411, 'abundance': None},
-   65: {'mass': 65.005593, 'abundance': None}}},
+   65: {'mass': 65.005593, 'abundance': None}},
+  'color': '#BFC2C7'},
  'V': {'default': 51,
+  'vdw': 2.07,
   'isotopes': {39: {'mass': 39.02423, 'abundance': None},
    40: {'mass': 40.013387, 'abundance': None},
    41: {'mass': 41.000333, 'abundance': None},
@@ -787,8 +977,10 @@ elements = {'H': {'default': 1,
    64: {'mass': 63.98248, 'abundance': None},
    65: {'mass': 64.986999, 'abundance': None},
    66: {'mass': 65.993237, 'abundance': None},
-   67: {'mass': 66.998128, 'abundance': None}}},
+   67: {'mass': 66.998128, 'abundance': None}},
+  'color': '#A6A6AB'},
  'Cr': {'default': 52,
+  'vdw': 2.06,
   'isotopes': {41: {'mass': 41.021911, 'abundance': None},
    42: {'mass': 42.007579, 'abundance': None},
    43: {'mass': 42.997885, 'abundance': None},
@@ -818,8 +1010,10 @@ elements = {'H': {'default': 1,
    67: {'mass': 66.979313, 'abundance': None},
    68: {'mass': 67.983156, 'abundance': None},
    69: {'mass': 68.989662, 'abundance': None},
-   70: {'mass': 69.993945, 'abundance': None}}},
+   70: {'mass': 69.993945, 'abundance': None}},
+  'color': '#8A99C7'},
  'Mn': {'default': 55,
+  'vdw': 2.05,
   'isotopes': {43: {'mass': 43.018647, 'abundance': None},
    44: {'mass': 44.008009, 'abundance': None},
    45: {'mass': 44.994654, 'abundance': None},
@@ -850,8 +1044,10 @@ elements = {'H': {'default': 1,
    70: {'mass': 69.978046, 'abundance': None},
    71: {'mass': 70.982158, 'abundance': None},
    72: {'mass': 71.988009, 'abundance': None},
-   73: {'mass': 72.992807, 'abundance': None}}},
+   73: {'mass': 72.992807, 'abundance': None}},
+  'color': '#9C7AC7'},
  'Fe': {'default': 56,
+  'vdw': 2.04,
   'isotopes': {45: {'mass': 45.015467, 'abundance': None},
    46: {'mass': 46.001299, 'abundance': None},
    47: {'mass': 46.992346, 'abundance': None},
@@ -883,8 +1079,10 @@ elements = {'H': {'default': 1,
    73: {'mass': 72.974246, 'abundance': None},
    74: {'mass': 73.977821, 'abundance': None},
    75: {'mass': 74.984219, 'abundance': None},
-   76: {'mass': 75.988631, 'abundance': None}}},
+   76: {'mass': 75.988631, 'abundance': None}},
+  'color': '#E06633'},
  'Co': {'default': 59,
+  'vdw': 2.0,
   'isotopes': {47: {'mass': 47.011401, 'abundance': None},
    48: {'mass': 48.001857, 'abundance': None},
    49: {'mass': 48.989501, 'abundance': None},
@@ -916,8 +1114,10 @@ elements = {'H': {'default': 1,
    75: {'mass': 74.967192, 'abundance': None},
    76: {'mass': 75.972453, 'abundance': None},
    77: {'mass': 76.976479, 'abundance': None},
-   78: {'mass': 77.983553, 'abundance': None}}},
+   78: {'mass': 77.983553, 'abundance': None}},
+  'color': '#F090A0'},
  'Ni': {'default': 58,
+  'vdw': 1.97,
   'isotopes': {48: {'mass': 48.019515, 'abundance': None},
    49: {'mass': 49.009157, 'abundance': None},
    50: {'mass': 49.996286, 'abundance': None},
@@ -952,8 +1152,10 @@ elements = {'H': {'default': 1,
    79: {'mass': 78.969769, 'abundance': None},
    80: {'mass': 79.975051, 'abundance': None},
    81: {'mass': 80.982727, 'abundance': None},
-   82: {'mass': 81.988492, 'abundance': None}}},
+   82: {'mass': 81.988492, 'abundance': None}},
+  'color': '#50D050'},
  'Cu': {'default': 63,
+  'vdw': 1.96,
   'isotopes': {52: {'mass': 51.997982, 'abundance': None},
    53: {'mass': 52.985894, 'abundance': None},
    54: {'mass': 53.977198, 'abundance': None},
@@ -986,8 +1188,10 @@ elements = {'H': {'default': 1,
    81: {'mass': 80.965743, 'abundance': None},
    82: {'mass': 81.972378, 'abundance': None},
    83: {'mass': 82.97811, 'abundance': None},
-   84: {'mass': 83.985271, 'abundance': None}}},
+   84: {'mass': 83.985271, 'abundance': None}},
+  'color': '#C88033'},
  'Zn': {'default': 64,
+  'vdw': 2.01,
   'isotopes': {54: {'mass': 53.993879, 'abundance': None},
    55: {'mass': 54.984681, 'abundance': None},
    56: {'mass': 55.972743, 'abundance': None},
@@ -1020,8 +1224,10 @@ elements = {'H': {'default': 1,
    83: {'mass': 82.961041, 'abundance': None},
    84: {'mass': 83.965829, 'abundance': None},
    85: {'mass': 84.973054, 'abundance': None},
-   86: {'mass': 85.978463, 'abundance': None}}},
+   86: {'mass': 85.978463, 'abundance': None}},
+  'color': '#7D80B0'},
  'Ga': {'default': 69,
+  'vdw': 1.87,
   'isotopes': {56: {'mass': 55.995878, 'abundance': None},
    57: {'mass': 56.983457, 'abundance': None},
    58: {'mass': 57.974729, 'abundance': None},
@@ -1054,8 +1260,10 @@ elements = {'H': {'default': 1,
    85: {'mass': 84.957333, 'abundance': None},
    86: {'mass': 85.963757, 'abundance': None},
    87: {'mass': 86.969007, 'abundance': None},
-   88: {'mass': 87.975963, 'abundance': None}}},
+   88: {'mass': 87.975963, 'abundance': None}},
+  'color': '#C28F8F'},
  'Ge': {'default': 74,
+  'vdw': 2.11,
   'isotopes': {58: {'mass': 57.991863, 'abundance': None},
    59: {'mass': 58.982426, 'abundance': None},
    60: {'mass': 59.970445, 'abundance': None},
@@ -1088,8 +1296,10 @@ elements = {'H': {'default': 1,
    87: {'mass': 86.953204, 'abundance': None},
    88: {'mass': 87.957574, 'abundance': None},
    89: {'mass': 88.96453, 'abundance': None},
-   90: {'mass': 89.969436, 'abundance': None}}},
+   90: {'mass': 89.969436, 'abundance': None}},
+  'color': '#668F8F'},
  'As': {'default': 75,
+  'vdw': 1.85,
   'isotopes': {60: {'mass': 59.993945, 'abundance': None},
    61: {'mass': 60.981535, 'abundance': None},
    62: {'mass': 61.973784, 'abundance': None},
@@ -1122,8 +1332,10 @@ elements = {'H': {'default': 1,
    89: {'mass': 88.950048, 'abundance': None},
    90: {'mass': 89.955995, 'abundance': None},
    91: {'mass': 90.960816, 'abundance': None},
-   92: {'mass': 91.967386, 'abundance': None}}},
+   92: {'mass': 91.967386, 'abundance': None}},
+  'color': '#BD80E3'},
  'Se': {'default': 80,
+  'vdw': 1.9,
   'isotopes': {63: {'mass': 62.981911, 'abundance': None},
    64: {'mass': 63.971165, 'abundance': None},
    65: {'mass': 64.964552, 'abundance': None},
@@ -1156,8 +1368,10 @@ elements = {'H': {'default': 1,
    92: {'mass': 91.94984, 'abundance': None},
    93: {'mass': 92.956135, 'abundance': None},
    94: {'mass': 93.96049, 'abundance': None},
-   95: {'mass': 94.9673, 'abundance': None}}},
+   95: {'mass': 94.9673, 'abundance': None}},
+  'color': '#FFA100'},
  'Br': {'default': 79,
+  'vdw': 1.85,
   'isotopes': {65: {'mass': 64.982297, 'abundance': None},
    66: {'mass': 65.974697, 'abundance': None},
    67: {'mass': 66.965078, 'abundance': None},
@@ -1191,8 +1405,10 @@ elements = {'H': {'default': 1,
    95: {'mass': 94.952925, 'abundance': None},
    96: {'mass': 95.95898, 'abundance': None},
    97: {'mass': 96.963499, 'abundance': None},
-   98: {'mass': 97.969887, 'abundance': None}}},
+   98: {'mass': 97.969887, 'abundance': None}},
+  'color': '#A62929'},
  'Kr': {'default': 84,
+  'vdw': 2.02,
   'isotopes': {67: {'mass': 66.983305, 'abundance': None},
    68: {'mass': 67.972489, 'abundance': None},
    69: {'mass': 68.965496, 'abundance': None},
@@ -1227,8 +1443,10 @@ elements = {'H': {'default': 1,
    98: {'mass': 97.952635, 'abundance': None},
    99: {'mass': 98.958776, 'abundance': None},
    100: {'mass': 99.962995, 'abundance': None},
-   101: {'mass': 100.969318, 'abundance': None}}},
+   101: {'mass': 100.969318, 'abundance': None}},
+  'color': '#5CB8D1'},
  'Rb': {'default': 85,
+  'vdw': 3.03,
   'isotopes': {71: {'mass': 70.965335, 'abundance': None},
    72: {'mass': 71.958851, 'abundance': None},
    73: {'mass': 72.950604506, 'abundance': None},
@@ -1262,8 +1480,10 @@ elements = {'H': {'default': 1,
    101: {'mass': 100.954302, 'abundance': None},
    102: {'mass': 101.960008, 'abundance': None},
    103: {'mass': 102.964401, 'abundance': None},
-   104: {'mass': 103.970531, 'abundance': None}}},
+   104: {'mass': 103.970531, 'abundance': None}},
+  'color': '#702EB0'},
  'Sr': {'default': 88,
+  'vdw': 2.49,
   'isotopes': {73: {'mass': 72.9657, 'abundance': None},
    74: {'mass': 73.95617, 'abundance': None},
    75: {'mass': 74.949952767, 'abundance': None},
@@ -1298,8 +1518,10 @@ elements = {'H': {'default': 1,
    104: {'mass': 103.953022, 'abundance': None},
    105: {'mass': 104.959001, 'abundance': None},
    106: {'mass': 105.963177, 'abundance': None},
-   107: {'mass': 106.969672, 'abundance': None}}},
+   107: {'mass': 106.969672, 'abundance': None}},
+  'color': '#00FF00'},
  'Y': {'default': 89,
+  'vdw': 2.32,
   'isotopes': {75: {'mass': 74.96584, 'abundance': None},
    76: {'mass': 75.958937, 'abundance': None},
    77: {'mass': 76.950146, 'abundance': None},
@@ -1334,8 +1556,10 @@ elements = {'H': {'default': 1,
    106: {'mass': 105.950842, 'abundance': None},
    107: {'mass': 106.954943, 'abundance': None},
    108: {'mass': 107.960515, 'abundance': None},
-   109: {'mass': 108.965131, 'abundance': None}}},
+   109: {'mass': 108.965131, 'abundance': None}},
+  'color': '#94FFFF'},
  'Zr': {'default': 90,
+  'vdw': 2.23,
   'isotopes': {77: {'mass': 76.966076, 'abundance': None},
    78: {'mass': 77.956146, 'abundance': None},
    79: {'mass': 78.94979, 'abundance': None},
@@ -1372,8 +1596,10 @@ elements = {'H': {'default': 1,
    110: {'mass': 109.954675, 'abundance': None},
    111: {'mass': 110.960837, 'abundance': None},
    112: {'mass': 111.965196, 'abundance': None},
-   113: {'mass': 112.971723, 'abundance': None}}},
+   113: {'mass': 112.971723, 'abundance': None}},
+  'color': '#94E0E0'},
  'Nb': {'default': 93,
+  'vdw': 2.18,
   'isotopes': {79: {'mass': 78.966022, 'abundance': None},
    80: {'mass': 79.958754, 'abundance': None},
    81: {'mass': 80.95023, 'abundance': None},
@@ -1411,8 +1637,10 @@ elements = {'H': {'default': 1,
    113: {'mass': 112.956833, 'abundance': None},
    114: {'mass': 113.962469, 'abundance': None},
    115: {'mass': 114.966849, 'abundance': None},
-   116: {'mass': 115.972914, 'abundance': None}}},
+   116: {'mass': 115.972914, 'abundance': None}},
+  'color': '#73C2C9'},
  'Mo': {'default': 98,
+  'vdw': 2.17,
   'isotopes': {81: {'mass': 80.966226, 'abundance': None},
    82: {'mass': 81.956661, 'abundance': None},
    83: {'mass': 82.950252, 'abundance': None},
@@ -1451,8 +1679,10 @@ elements = {'H': {'default': 1,
    116: {'mass': 115.955759, 'abundance': None},
    117: {'mass': 116.961686, 'abundance': None},
    118: {'mass': 117.965249, 'abundance': None},
-   119: {'mass': 118.971465, 'abundance': None}}},
+   119: {'mass': 118.971465, 'abundance': None}},
+  'color': '#54B5B5'},
  'Tc': {'default': None,
+  'vdw': 2.16,
   'isotopes': {83: {'mass': 82.966377, 'abundance': None},
    84: {'mass': 83.959527, 'abundance': None},
    85: {'mass': 84.950778, 'abundance': None},
@@ -1492,8 +1722,10 @@ elements = {'H': {'default': 1,
    119: {'mass': 118.956876, 'abundance': None},
    120: {'mass': 119.962426, 'abundance': None},
    121: {'mass': 120.96614, 'abundance': None},
-   122: {'mass': 121.97176, 'abundance': None}}},
+   122: {'mass': 121.97176, 'abundance': None}},
+  'color': '#3B9E9E'},
  'Ru': {'default': 102,
+  'vdw': 2.13,
   'isotopes': {85: {'mass': 84.967117, 'abundance': None},
    86: {'mass': 85.957305, 'abundance': None},
    87: {'mass': 86.950907, 'abundance': None},
@@ -1534,8 +1766,10 @@ elements = {'H': {'default': 1,
    122: {'mass': 121.955147, 'abundance': None},
    123: {'mass': 122.960762, 'abundance': None},
    124: {'mass': 123.96394, 'abundance': None},
-   125: {'mass': 124.969544, 'abundance': None}}},
+   125: {'mass': 124.969544, 'abundance': None}},
+  'color': '#248F8F'},
  'Rh': {'default': 103,
+  'vdw': 2.1,
   'isotopes': {88: {'mass': 87.960429, 'abundance': None},
    89: {'mass': 88.950992, 'abundance': None},
    90: {'mass': 89.944569, 'abundance': None},
@@ -1576,8 +1810,10 @@ elements = {'H': {'default': 1,
    125: {'mass': 124.955094, 'abundance': None},
    126: {'mass': 125.960064, 'abundance': None},
    127: {'mass': 126.963789, 'abundance': None},
-   128: {'mass': 127.970649, 'abundance': None}}},
+   128: {'mass': 127.970649, 'abundance': None}},
+  'color': '#0A7D8C'},
  'Pd': {'default': 106,
+  'vdw': 2.1,
   'isotopes': {90: {'mass': 89.95737, 'abundance': None},
    91: {'mass': 90.950435, 'abundance': None},
    92: {'mass': 91.941192225, 'abundance': None},
@@ -1619,8 +1855,10 @@ elements = {'H': {'default': 1,
    128: {'mass': 127.952345, 'abundance': None},
    129: {'mass': 128.959334, 'abundance': None},
    130: {'mass': 129.964863, 'abundance': None},
-   131: {'mass': 130.972367, 'abundance': None}}},
+   131: {'mass': 130.972367, 'abundance': None}},
+  'color': '#006985'},
  'Ag': {'default': 107,
+  'vdw': 2.11,
   'isotopes': {92: {'mass': 91.95971, 'abundance': None},
    93: {'mass': 92.950188, 'abundance': None},
    94: {'mass': 93.943744, 'abundance': None},
@@ -1662,8 +1900,10 @@ elements = {'H': {'default': 1,
    130: {'mass': 129.950727, 'abundance': None},
    131: {'mass': 130.956253, 'abundance': None},
    132: {'mass': 131.96307, 'abundance': None},
-   133: {'mass': 132.968781, 'abundance': None}}},
+   133: {'mass': 132.968781, 'abundance': None}},
+  'color': '#C0C0C0'},
  'Cd': {'default': 114,
+  'vdw': 2.18,
   'isotopes': {94: {'mass': 93.956586, 'abundance': None},
    95: {'mass': 94.949483, 'abundance': None},
    96: {'mass': 95.940341, 'abundance': None},
@@ -1705,8 +1945,10 @@ elements = {'H': {'default': 1,
    132: {'mass': 131.945823136, 'abundance': None},
    133: {'mass': 132.952614, 'abundance': None},
    134: {'mass': 133.957638, 'abundance': None},
-   135: {'mass': 134.964766, 'abundance': None}}},
+   135: {'mass': 134.964766, 'abundance': None}},
+  'color': '#FFD98F'},
  'In': {'default': 115,
+  'vdw': 1.93,
   'isotopes': {96: {'mass': 95.959109, 'abundance': None},
    97: {'mass': 96.949125, 'abundance': None},
    98: {'mass': 97.942129, 'abundance': None},
@@ -1748,8 +1990,10 @@ elements = {'H': {'default': 1,
    134: {'mass': 133.944208, 'abundance': None},
    135: {'mass': 134.949425, 'abundance': None},
    136: {'mass': 135.956017, 'abundance': None},
-   137: {'mass': 136.961535, 'abundance': None}}},
+   137: {'mass': 136.961535, 'abundance': None}},
+  'color': '#A67573'},
  'Sn': {'default': 120,
+  'vdw': 2.17,
   'isotopes': {99: {'mass': 98.948495, 'abundance': None},
    100: {'mass': 99.938648944, 'abundance': None},
    101: {'mass': 100.935259252, 'abundance': None},
@@ -1791,8 +2035,10 @@ elements = {'H': {'default': 1,
    137: {'mass': 136.946162, 'abundance': None},
    138: {'mass': 137.951143, 'abundance': None},
    139: {'mass': 138.957799, 'abundance': None},
-   140: {'mass': 139.962973, 'abundance': None}}},
+   140: {'mass': 139.962973, 'abundance': None}},
+  'color': '#668080'},
  'Sb': {'default': 121,
+  'vdw': 2.06,
   'isotopes': {102: {'mass': 101.945142, 'abundance': None},
    103: {'mass': 102.939162, 'abundance': None},
    104: {'mass': 103.936344, 'abundance': None},
@@ -1833,8 +2079,10 @@ elements = {'H': {'default': 1,
    139: {'mass': 138.946269, 'abundance': None},
    140: {'mass': 139.952345, 'abundance': None},
    141: {'mass': 140.957552, 'abundance': None},
-   142: {'mass': 141.963918, 'abundance': None}}},
+   142: {'mass': 141.963918, 'abundance': None}},
+  'color': '#9E63B5'},
  'Te': {'default': 130,
+  'vdw': 2.06,
   'isotopes': {104: {'mass': 103.946723408, 'abundance': None},
    105: {'mass': 104.943304516, 'abundance': None},
    106: {'mass': 105.937498521, 'abundance': None},
@@ -1876,8 +2124,10 @@ elements = {'H': {'default': 1,
    142: {'mass': 141.950027, 'abundance': None},
    143: {'mass': 142.956489, 'abundance': None},
    144: {'mass': 143.961116, 'abundance': None},
-   145: {'mass': 144.967783, 'abundance': None}}},
+   145: {'mass': 144.967783, 'abundance': None}},
+  'color': '#D47A00'},
  'I': {'default': 127,
+  'vdw': 1.98,
   'isotopes': {106: {'mass': 105.953516, 'abundance': None},
    107: {'mass': 106.946935, 'abundance': None},
    108: {'mass': 107.943348, 'abundance': None},
@@ -1919,8 +2169,10 @@ elements = {'H': {'default': 1,
    144: {'mass': 143.951336, 'abundance': None},
    145: {'mass': 144.955845, 'abundance': None},
    146: {'mass': 145.961846, 'abundance': None},
-   147: {'mass': 146.966505, 'abundance': None}}},
+   147: {'mass': 146.966505, 'abundance': None}},
+  'color': '#940094'},
  'Xe': {'default': 132,
+  'vdw': 2.16,
   'isotopes': {108: {'mass': 107.954232285, 'abundance': None},
    109: {'mass': 108.950434955, 'abundance': None},
    110: {'mass': 109.944258759, 'abundance': None},
@@ -1963,8 +2215,10 @@ elements = {'H': {'default': 1,
    147: {'mass': 146.954482, 'abundance': None},
    148: {'mass': 147.958508, 'abundance': None},
    149: {'mass': 148.964573, 'abundance': None},
-   150: {'mass': 149.968878, 'abundance': None}}},
+   150: {'mass': 149.968878, 'abundance': None}},
+  'color': '#429EB0'},
  'Cs': {'default': 133,
+  'vdw': 3.43,
   'isotopes': {111: {'mass': 110.953945, 'abundance': None},
    112: {'mass': 111.950172, 'abundance': None},
    113: {'mass': 112.944428484, 'abundance': None},
@@ -2006,8 +2260,10 @@ elements = {'H': {'default': 1,
    149: {'mass': 148.953516, 'abundance': None},
    150: {'mass': 149.959023, 'abundance': None},
    151: {'mass': 150.963199, 'abundance': None},
-   152: {'mass': 151.968728, 'abundance': None}}},
+   152: {'mass': 151.968728, 'abundance': None}},
+  'color': '#57178F'},
  'Ba': {'default': 138,
+  'vdw': 2.68,
   'isotopes': {113: {'mass': 112.95737, 'abundance': None},
    114: {'mass': 113.950718489, 'abundance': None},
    115: {'mass': 114.947482, 'abundance': None},
@@ -2049,8 +2305,10 @@ elements = {'H': {'default': 1,
    151: {'mass': 150.951755, 'abundance': None},
    152: {'mass': 151.95533, 'abundance': None},
    153: {'mass': 152.960848, 'abundance': None},
-   154: {'mass': 153.964659, 'abundance': None}}},
+   154: {'mass': 153.964659, 'abundance': None}},
+  'color': '#00C900'},
  'La': {'default': 139,
+  'vdw': 2.43,
   'isotopes': {116: {'mass': 115.957005, 'abundance': None},
    117: {'mass': 116.950326, 'abundance': None},
    118: {'mass': 117.946731, 'abundance': None},
@@ -2092,8 +2350,10 @@ elements = {'H': {'default': 1,
    154: {'mass': 153.955416, 'abundance': None},
    155: {'mass': 154.95928, 'abundance': None},
    156: {'mass': 155.964519, 'abundance': None},
-   157: {'mass': 156.968792, 'abundance': None}}},
+   157: {'mass': 156.968792, 'abundance': None}},
+  'color': '#70D4FF'},
  'Ce': {'default': 140,
+  'vdw': 2.42,
   'isotopes': {119: {'mass': 118.952957, 'abundance': None},
    120: {'mass': 119.946613, 'abundance': None},
    121: {'mass': 120.943435, 'abundance': None},
@@ -2134,8 +2394,10 @@ elements = {'H': {'default': 1,
    156: {'mass': 155.951884, 'abundance': None},
    157: {'mass': 156.957133, 'abundance': None},
    158: {'mass': 157.960773, 'abundance': None},
-   159: {'mass': 158.966355, 'abundance': None}}},
+   159: {'mass': 158.966355, 'abundance': None}},
+  'color': '#FFFFC7'},
  'Pr': {'default': 141,
+  'vdw': 2.4,
   'isotopes': {121: {'mass': 120.955393, 'abundance': None},
    122: {'mass': 121.951927, 'abundance': None},
    123: {'mass': 122.946076, 'abundance': None},
@@ -2176,8 +2438,10 @@ elements = {'H': {'default': 1,
    158: {'mass': 157.952603, 'abundance': None},
    159: {'mass': 158.956232, 'abundance': None},
    160: {'mass': 159.961138, 'abundance': None},
-   161: {'mass': 160.965121, 'abundance': None}}},
+   161: {'mass': 160.965121, 'abundance': None}},
+  'color': '#D9FFC7'},
  'Nd': {'default': 142,
+  'vdw': 2.39,
   'isotopes': {124: {'mass': 123.951873, 'abundance': None},
    125: {'mass': 124.948395, 'abundance': None},
    126: {'mass': 125.942694, 'abundance': None},
@@ -2217,8 +2481,10 @@ elements = {'H': {'default': 1,
    160: {'mass': 159.949839172, 'abundance': None},
    161: {'mass': 160.954664, 'abundance': None},
    162: {'mass': 161.958121, 'abundance': None},
-   163: {'mass': 162.963414, 'abundance': None}}},
+   163: {'mass': 162.963414, 'abundance': None}},
+  'color': '#C7FFC7'},
  'Pm': {'default': None,
+  'vdw': 2.38,
   'isotopes': {126: {'mass': 125.957327, 'abundance': None},
    127: {'mass': 126.951358, 'abundance': None},
    128: {'mass': 127.948234, 'abundance': None},
@@ -2258,8 +2524,10 @@ elements = {'H': {'default': 1,
    162: {'mass': 161.950574, 'abundance': None},
    163: {'mass': 162.953881, 'abundance': None},
    164: {'mass': 163.958819, 'abundance': None},
-   165: {'mass': 164.96278, 'abundance': None}}},
+   165: {'mass': 164.96278, 'abundance': None}},
+  'color': '#A3FFC7'},
  'Sm': {'default': 152,
+  'vdw': 2.36,
   'isotopes': {128: {'mass': 127.957971, 'abundance': None},
    129: {'mass': 128.954557, 'abundance': None},
    130: {'mass': 129.948792, 'abundance': None},
@@ -2300,8 +2568,10 @@ elements = {'H': {'default': 1,
    165: {'mass': 164.95329, 'abundance': None},
    166: {'mass': 165.956575, 'abundance': None},
    167: {'mass': 166.962072, 'abundance': None},
-   168: {'mass': 167.966033, 'abundance': None}}},
+   168: {'mass': 167.966033, 'abundance': None}},
+  'color': '#8FFFC7'},
  'Eu': {'default': 153,
+  'vdw': 2.35,
   'isotopes': {130: {'mass': 129.964022, 'abundance': None},
    131: {'mass': 130.957634, 'abundance': None},
    132: {'mass': 131.954696, 'abundance': None},
@@ -2342,8 +2612,10 @@ elements = {'H': {'default': 1,
    167: {'mass': 166.953011, 'abundance': None},
    168: {'mass': 167.957863, 'abundance': None},
    169: {'mass': 168.961717, 'abundance': None},
-   170: {'mass': 169.96687, 'abundance': None}}},
+   170: {'mass': 169.96687, 'abundance': None}},
+  'color': '#61FFC7'},
  'Gd': {'default': 158,
+  'vdw': 2.34,
   'isotopes': {133: {'mass': 132.961288, 'abundance': None},
    134: {'mass': 133.955416, 'abundance': None},
    135: {'mass': 134.952496, 'abundance': None},
@@ -2383,8 +2655,10 @@ elements = {'H': {'default': 1,
    169: {'mass': 168.952882, 'abundance': None},
    170: {'mass': 169.956146, 'abundance': None},
    171: {'mass': 170.961127, 'abundance': None},
-   172: {'mass': 171.964605, 'abundance': None}}},
+   172: {'mass': 171.964605, 'abundance': None}},
+  'color': '#45FFC7'},
  'Tb': {'default': 159,
+  'vdw': 2.33,
   'isotopes': {135: {'mass': 134.964516, 'abundance': None},
    136: {'mass': 135.96146, 'abundance': None},
    137: {'mass': 136.95602, 'abundance': None},
@@ -2424,8 +2698,10 @@ elements = {'H': {'default': 1,
    171: {'mass': 170.953011, 'abundance': None},
    172: {'mass': 171.957391, 'abundance': None},
    173: {'mass': 172.960805, 'abundance': None},
-   174: {'mass': 173.965679, 'abundance': None}}},
+   174: {'mass': 173.965679, 'abundance': None}},
+  'color': '#30FFC7'},
  'Dy': {'default': 164,
+  'vdw': 2.31,
   'isotopes': {138: {'mass': 137.9625, 'abundance': None},
    139: {'mass': 138.959527, 'abundance': None},
    140: {'mass': 139.95402, 'abundance': None},
@@ -2464,8 +2740,10 @@ elements = {'H': {'default': 1,
    173: {'mass': 172.953043, 'abundance': None},
    174: {'mass': 173.955845, 'abundance': None},
    175: {'mass': 174.960569, 'abundance': None},
-   176: {'mass': 175.963918, 'abundance': None}}},
+   176: {'mass': 175.963918, 'abundance': None}},
+  'color': '#1FFFC7'},
  'Ho': {'default': 165,
+  'vdw': 2.3,
   'isotopes': {140: {'mass': 139.968526, 'abundance': None},
    141: {'mass': 140.963108, 'abundance': None},
    142: {'mass': 141.96001, 'abundance': None},
@@ -2504,8 +2782,10 @@ elements = {'H': {'default': 1,
    175: {'mass': 174.953516, 'abundance': None},
    176: {'mass': 175.957713, 'abundance': None},
    177: {'mass': 176.961052, 'abundance': None},
-   178: {'mass': 177.965507, 'abundance': None}}},
+   178: {'mass': 177.965507, 'abundance': None}},
+  'color': '#00FF9C'},
  'Er': {'default': 166,
+  'vdw': 2.29,
   'isotopes': {142: {'mass': 141.970016, 'abundance': None},
    143: {'mass': 142.966548, 'abundance': None},
    144: {'mass': 143.9607, 'abundance': None},
@@ -2544,8 +2824,10 @@ elements = {'H': {'default': 1,
    177: {'mass': 176.95399, 'abundance': None},
    178: {'mass': 177.956779, 'abundance': None},
    179: {'mass': 178.961267, 'abundance': None},
-   180: {'mass': 179.96438, 'abundance': None}}},
+   180: {'mass': 179.96438, 'abundance': None}},
+  'color': '#00E675'},
  'Tm': {'default': 169,
+  'vdw': 2.27,
   'isotopes': {144: {'mass': 143.976211, 'abundance': None},
    145: {'mass': 144.970389, 'abundance': None},
    146: {'mass': 145.966661, 'abundance': None},
@@ -2584,8 +2866,10 @@ elements = {'H': {'default': 1,
    179: {'mass': 178.955018, 'abundance': None},
    180: {'mass': 179.959023, 'abundance': None},
    181: {'mass': 180.961954, 'abundance': None},
-   182: {'mass': 181.966194, 'abundance': None}}},
+   182: {'mass': 181.966194, 'abundance': None}},
+  'color': '#00D452'},
  'Yb': {'default': 174,
+  'vdw': 2.26,
   'isotopes': {148: {'mass': 147.967547, 'abundance': None},
    149: {'mass': 148.964219, 'abundance': None},
    150: {'mass': 149.958314, 'abundance': None},
@@ -2623,8 +2907,10 @@ elements = {'H': {'default': 1,
    182: {'mass': 181.958239, 'abundance': None},
    183: {'mass': 182.962426, 'abundance': None},
    184: {'mass': 183.965002, 'abundance': None},
-   185: {'mass': 184.969425, 'abundance': None}}},
+   185: {'mass': 184.969425, 'abundance': None}},
+  'color': '#00BF38'},
  'Lu': {'default': 175,
+  'vdw': 2.24,
   'isotopes': {150: {'mass': 149.973407, 'abundance': None},
    151: {'mass': 150.967471, 'abundance': None},
    152: {'mass': 151.96412, 'abundance': None},
@@ -2663,8 +2949,10 @@ elements = {'H': {'default': 1,
    185: {'mass': 184.963542, 'abundance': None},
    186: {'mass': 185.96745, 'abundance': None},
    187: {'mass': 186.970188, 'abundance': None},
-   188: {'mass': 187.974428, 'abundance': None}}},
+   188: {'mass': 187.974428, 'abundance': None}},
+  'color': '#00AB24'},
  'Hf': {'default': 180,
+  'vdw': 2.23,
   'isotopes': {153: {'mass': 152.970692, 'abundance': None},
    154: {'mass': 153.964863, 'abundance': None},
    155: {'mass': 154.963167, 'abundance': None},
@@ -2702,8 +2990,10 @@ elements = {'H': {'default': 1,
    187: {'mass': 186.964573, 'abundance': None},
    188: {'mass': 187.966903, 'abundance': None},
    189: {'mass': 188.970853, 'abundance': None},
-   190: {'mass': 189.973376, 'abundance': None}}},
+   190: {'mass': 189.973376, 'abundance': None}},
+  'color': '#4DC2FF'},
  'Ta': {'default': 181,
+  'vdw': 2.22,
   'isotopes': {155: {'mass': 154.974248, 'abundance': None},
    156: {'mass': 155.972087, 'abundance': None},
    157: {'mass': 156.968227445, 'abundance': None},
@@ -2743,8 +3033,10 @@ elements = {'H': {'default': 1,
    191: {'mass': 190.97153, 'abundance': None},
    192: {'mass': 191.975201, 'abundance': None},
    193: {'mass': 192.97766, 'abundance': None},
-   194: {'mass': 193.98161, 'abundance': None}}},
+   194: {'mass': 193.98161, 'abundance': None}},
+  'color': '#4DA6FF'},
  'W': {'default': 184,
+  'vdw': 2.18,
   'isotopes': {157: {'mass': 156.978862, 'abundance': None},
    158: {'mass': 157.974565, 'abundance': None},
    159: {'mass': 158.972696, 'abundance': None},
@@ -2785,8 +3077,10 @@ elements = {'H': {'default': 1,
    194: {'mass': 193.973795, 'abundance': None},
    195: {'mass': 194.977735, 'abundance': None},
    196: {'mass': 195.979882, 'abundance': None},
-   197: {'mass': 196.984036, 'abundance': None}}},
+   197: {'mass': 196.984036, 'abundance': None}},
+  'color': '#2194D6'},
  'Re': {'default': 187,
+  'vdw': 2.16,
   'isotopes': {159: {'mass': 158.984106, 'abundance': None},
    160: {'mass': 159.98188, 'abundance': None},
    161: {'mass': 160.977624313, 'abundance': None},
@@ -2827,8 +3121,10 @@ elements = {'H': {'default': 1,
    196: {'mass': 195.975996, 'abundance': None},
    197: {'mass': 196.978153, 'abundance': None},
    198: {'mass': 197.98176, 'abundance': None},
-   199: {'mass': 198.984187, 'abundance': None}}},
+   199: {'mass': 198.984187, 'abundance': None}},
+  'color': '#267DAB'},
  'Os': {'default': 192,
+  'vdw': 2.16,
   'isotopes': {161: {'mass': 160.989054, 'abundance': None},
    162: {'mass': 161.984434, 'abundance': None},
    163: {'mass': 162.982462, 'abundance': None},
@@ -2871,8 +3167,10 @@ elements = {'H': {'default': 1,
    200: {'mass': 199.980086, 'abundance': None},
    201: {'mass': 200.984069, 'abundance': None},
    202: {'mass': 201.986548, 'abundance': None},
-   203: {'mass': 202.992195, 'abundance': None}}},
+   203: {'mass': 202.992195, 'abundance': None}},
+  'color': '#266696'},
  'Ir': {'default': 193,
+  'vdw': 2.13,
   'isotopes': {163: {'mass': 162.994299, 'abundance': None},
    164: {'mass': 163.991966, 'abundance': None},
    165: {'mass': 164.987552, 'abundance': None},
@@ -2915,8 +3213,10 @@ elements = {'H': {'default': 1,
    202: {'mass': 201.982136, 'abundance': None},
    203: {'mass': 202.984573, 'abundance': None},
    204: {'mass': 203.989726, 'abundance': None},
-   205: {'mass': 204.993988, 'abundance': None}}},
+   205: {'mass': 204.993988, 'abundance': None}},
+  'color': '#175487'},
  'Pt': {'default': 195,
+  'vdw': 2.13,
   'isotopes': {165: {'mass': 164.999658, 'abundance': None},
    166: {'mass': 165.994866, 'abundance': None},
    167: {'mass': 166.99275, 'abundance': None},
@@ -2960,8 +3260,10 @@ elements = {'H': {'default': 1,
    205: {'mass': 204.986237, 'abundance': None},
    206: {'mass': 205.99008, 'abundance': None},
    207: {'mass': 206.995556, 'abundance': None},
-   208: {'mass': 207.999463, 'abundance': None}}},
+   208: {'mass': 207.999463, 'abundance': None}},
+  'color': '#D0D0E0'},
  'Au': {'default': 197,
+  'vdw': 2.14,
   'isotopes': {168: {'mass': 168.002716, 'abundance': None},
    169: {'mass': 168.99808, 'abundance': None},
    170: {'mass': 169.996024, 'abundance': None},
@@ -3004,8 +3306,10 @@ elements = {'H': {'default': 1,
    207: {'mass': 206.988577, 'abundance': None},
    208: {'mass': 207.993655, 'abundance': None},
    209: {'mass': 208.997606, 'abundance': None},
-   210: {'mass': 210.002877, 'abundance': None}}},
+   210: {'mass': 210.002877, 'abundance': None}},
+  'color': '#FFD123'},
  'Hg': {'default': 202,
+  'vdw': 2.23,
   'isotopes': {170: {'mass': 170.005814, 'abundance': None},
    171: {'mass': 171.003585, 'abundance': None},
    172: {'mass': 171.998860581, 'abundance': None},
@@ -3052,8 +3356,10 @@ elements = {'H': {'default': 1,
    213: {'mass': 213.008803, 'abundance': None},
    214: {'mass': 214.012636, 'abundance': None},
    215: {'mass': 215.018368, 'abundance': None},
-   216: {'mass': 216.022459, 'abundance': None}}},
+   216: {'mass': 216.022459, 'abundance': None}},
+  'color': '#B8B8D0'},
  'Tl': {'default': 205,
+  'vdw': 1.96,
   'isotopes': {176: {'mass': 176.000627731, 'abundance': None},
    177: {'mass': 176.996414252, 'abundance': None},
    178: {'mass': 177.995047, 'abundance': None},
@@ -3096,8 +3402,10 @@ elements = {'H': {'default': 1,
    215: {'mass': 215.010768, 'abundance': None},
    216: {'mass': 216.015964, 'abundance': None},
    217: {'mass': 217.020032, 'abundance': None},
-   218: {'mass': 218.025454, 'abundance': None}}},
+   218: {'mass': 218.025454, 'abundance': None}},
+  'color': '#A6544D'},
  'Pb': {'default': 208,
+  'vdw': 2.02,
   'isotopes': {178: {'mass': 178.003836171, 'abundance': None},
    179: {'mass': 179.002202492, 'abundance': None},
    180: {'mass': 179.997916177, 'abundance': None},
@@ -3140,8 +3448,10 @@ elements = {'H': {'default': 1,
    217: {'mass': 217.013162, 'abundance': None},
    218: {'mass': 218.016779, 'abundance': None},
    219: {'mass': 219.022136, 'abundance': None},
-   220: {'mass': 220.025905, 'abundance': None}}},
+   220: {'mass': 220.025905, 'abundance': None}},
+  'color': '#575961'},
  'Bi': {'default': 209,
+  'vdw': 2.07,
   'isotopes': {184: {'mass': 184.001347, 'abundance': None},
    185: {'mass': 184.9976, 'abundance': None},
    186: {'mass': 185.996623169, 'abundance': None},
@@ -3182,8 +3492,10 @@ elements = {'H': {'default': 1,
    221: {'mass': 221.02598, 'abundance': None},
    222: {'mass': 222.031079, 'abundance': None},
    223: {'mass': 223.034611, 'abundance': None},
-   224: {'mass': 224.039796, 'abundance': None}}},
+   224: {'mass': 224.039796, 'abundance': None}},
+  'color': '#9E4FB5'},
  'Po': {'default': None,
+  'vdw': 1.97,
   'isotopes': {186: {'mass': 186.004403174, 'abundance': None},
    187: {'mass': 187.003031482, 'abundance': None},
    188: {'mass': 187.999415586, 'abundance': None},
@@ -3225,8 +3537,10 @@ elements = {'H': {'default': 1,
    224: {'mass': 224.03211, 'abundance': None},
    225: {'mass': 225.037123, 'abundance': None},
    226: {'mass': 226.04031, 'abundance': None},
-   227: {'mass': 227.04539, 'abundance': None}}},
+   227: {'mass': 227.04539, 'abundance': None}},
+  'color': '#AB5C00'},
  'At': {'default': None,
+  'vdw': 2.02,
   'isotopes': {191: {'mass': 191.004148081, 'abundance': None},
    192: {'mass': 192.003140912, 'abundance': None},
    193: {'mass': 192.999927725, 'abundance': None},
@@ -3265,8 +3579,10 @@ elements = {'H': {'default': 1,
    226: {'mass': 226.037209, 'abundance': None},
    227: {'mass': 227.040183, 'abundance': None},
    228: {'mass': 228.04496, 'abundance': None},
-   229: {'mass': 229.048191, 'abundance': None}}},
+   229: {'mass': 229.048191, 'abundance': None}},
+  'color': '#754F45'},
  'Rn': {'default': None,
+  'vdw': 2.2,
   'isotopes': {193: {'mass': 193.009707973, 'abundance': None},
    194: {'mass': 194.006145636, 'abundance': None},
    195: {'mass': 195.005421703, 'abundance': None},
@@ -3305,8 +3621,10 @@ elements = {'H': {'default': 1,
    228: {'mass': 228.037835415, 'abundance': None},
    229: {'mass': 229.042257272, 'abundance': None},
    230: {'mass': 230.045271, 'abundance': None},
-   231: {'mass': 231.049973, 'abundance': None}}},
+   231: {'mass': 231.049973, 'abundance': None}},
+  'color': '#428296'},
  'Fr': {'default': None,
+  'vdw': 3.48,
   'isotopes': {197: {'mass': 197.011008086, 'abundance': None},
    198: {'mass': 198.010282081, 'abundance': None},
    199: {'mass': 199.007269384, 'abundance': None},
@@ -3343,8 +3661,10 @@ elements = {'H': {'default': 1,
    230: {'mass': 230.042390787, 'abundance': None},
    231: {'mass': 231.045175353, 'abundance': None},
    232: {'mass': 232.049461219, 'abundance': None},
-   233: {'mass': 233.052517833, 'abundance': None}}},
+   233: {'mass': 233.052517833, 'abundance': None}},
+  'color': '#420066'},
  'Ra': {'default': None,
+  'vdw': 2.83,
   'isotopes': {201: {'mass': 201.012814699, 'abundance': None},
    202: {'mass': 202.009742305, 'abundance': None},
    203: {'mass': 203.009233907, 'abundance': None},
@@ -3379,8 +3699,10 @@ elements = {'H': {'default': 1,
    232: {'mass': 232.043475267, 'abundance': None},
    233: {'mass': 233.04759457, 'abundance': None},
    234: {'mass': 234.0503821, 'abundance': None},
-   235: {'mass': 235.05489, 'abundance': None}}},
+   235: {'mass': 235.05489, 'abundance': None}},
+  'color': '#007D00'},
  'Ac': {'default': None,
+  'vdw': 2.47,
   'isotopes': {205: {'mass': 205.015144152, 'abundance': None},
    206: {'mass': 206.014476477, 'abundance': None},
    207: {'mass': 207.011965967, 'abundance': None},
@@ -3413,8 +3735,10 @@ elements = {'H': {'default': 1,
    234: {'mass': 234.048139, 'abundance': None},
    235: {'mass': 235.05084, 'abundance': None},
    236: {'mass': 236.054988, 'abundance': None},
-   237: {'mass': 237.057993, 'abundance': None}}},
+   237: {'mass': 237.057993, 'abundance': None}},
+  'color': '#70ABFA'},
  'Th': {'default': 232,
+  'vdw': 2.45,
   'isotopes': {208: {'mass': 208.017915348, 'abundance': None},
    209: {'mass': 209.017601, 'abundance': None},
    210: {'mass': 210.015093515, 'abundance': None},
@@ -3446,8 +3770,10 @@ elements = {'H': {'default': 1,
    236: {'mass': 236.049657, 'abundance': None},
    237: {'mass': 237.053629, 'abundance': None},
    238: {'mass': 238.056388, 'abundance': None},
-   239: {'mass': 239.060655, 'abundance': None}}},
+   239: {'mass': 239.060655, 'abundance': None}},
+  'color': '#00BAFF'},
  'Pa': {'default': 231,
+  'vdw': 2.43,
   'isotopes': {211: {'mass': 211.023674036, 'abundance': None},
    212: {'mass': 212.023184819, 'abundance': None},
    213: {'mass': 213.021099644, 'abundance': None},
@@ -3478,8 +3804,10 @@ elements = {'H': {'default': 1,
    238: {'mass': 238.054637, 'abundance': None},
    239: {'mass': 239.05726, 'abundance': None},
    240: {'mass': 240.061203, 'abundance': None},
-   241: {'mass': 241.064134, 'abundance': None}}},
+   241: {'mass': 241.064134, 'abundance': None}},
+  'color': '#00A1FF'},
  'U': {'default': 238,
+  'vdw': 2.41,
   'isotopes': {215: {'mass': 215.026719774, 'abundance': None},
    216: {'mass': 216.024762829, 'abundance': None},
    217: {'mass': 217.02466, 'abundance': None},
@@ -3508,8 +3836,10 @@ elements = {'H': {'default': 1,
    240: {'mass': 240.056592411, 'abundance': None},
    241: {'mass': 241.06033, 'abundance': None},
    242: {'mass': 242.062931, 'abundance': None},
-   243: {'mass': 243.067075, 'abundance': None}}},
+   243: {'mass': 243.067075, 'abundance': None}},
+  'color': '#008FFF'},
  'Np': {'default': None,
+  'vdw': 2.39,
   'isotopes': {219: {'mass': 219.031601865, 'abundance': None},
    220: {'mass': 220.03271628, 'abundance': None},
    221: {'mass': 221.03211, 'abundance': None},
@@ -3536,8 +3866,10 @@ elements = {'H': {'default': 1,
    242: {'mass': 242.061639548, 'abundance': None},
    243: {'mass': 243.064204, 'abundance': None},
    244: {'mass': 244.067891, 'abundance': None},
-   245: {'mass': 245.070693, 'abundance': None}}},
+   245: {'mass': 245.070693, 'abundance': None}},
+  'color': '#0080FF'},
  'Pu': {'default': None,
+  'vdw': 2.43,
   'isotopes': {221: {'mass': 221.038572, 'abundance': None},
    222: {'mass': 222.037638, 'abundance': None},
    223: {'mass': 223.038777, 'abundance': None},
@@ -3564,8 +3896,10 @@ elements = {'H': {'default': 1,
    244: {'mass': 244.064204401, 'abundance': None},
    245: {'mass': 245.067824554, 'abundance': None},
    246: {'mass': 246.070204172, 'abundance': None},
-   247: {'mass': 247.0743, 'abundance': None}}},
+   247: {'mass': 247.0743, 'abundance': None}},
+  'color': '#006BFF'},
  'Am': {'default': None,
+  'vdw': 2.44,
   'isotopes': {223: {'mass': 223.04584, 'abundance': None},
    224: {'mass': 224.046442, 'abundance': None},
    225: {'mass': 225.045508, 'abundance': None},
@@ -3592,8 +3926,10 @@ elements = {'H': {'default': 1,
    246: {'mass': 246.069774, 'abundance': None},
    247: {'mass': 247.072092, 'abundance': None},
    248: {'mass': 248.075752, 'abundance': None},
-   249: {'mass': 249.07848, 'abundance': None}}},
+   249: {'mass': 249.07848, 'abundance': None}},
+  'color': '#545CF2'},
  'Cm': {'default': None,
+  'vdw': 2.45,
   'isotopes': {231: {'mass': 231.050746, 'abundance': None},
    232: {'mass': 232.04974, 'abundance': None},
    233: {'mass': 233.050771485, 'abundance': None},
@@ -3615,8 +3951,10 @@ elements = {'H': {'default': 1,
    249: {'mass': 249.075953992, 'abundance': None},
    250: {'mass': 250.078357541, 'abundance': None},
    251: {'mass': 251.082284988, 'abundance': None},
-   252: {'mass': 252.08487, 'abundance': None}}},
+   252: {'mass': 252.08487, 'abundance': None}},
+  'color': '#785CE3'},
  'Bk': {'default': None,
+  'vdw': 2.44,
   'isotopes': {233: {'mass': 233.056652, 'abundance': None},
    234: {'mass': 234.057322, 'abundance': None},
    235: {'mass': 235.056651, 'abundance': None},
@@ -3638,8 +3976,10 @@ elements = {'H': {'default': 1,
    251: {'mass': 251.080760555, 'abundance': None},
    252: {'mass': 252.08431, 'abundance': None},
    253: {'mass': 253.08688, 'abundance': None},
-   254: {'mass': 254.0906, 'abundance': None}}},
+   254: {'mass': 254.0906, 'abundance': None}},
+  'color': '#8A4FE3'},
  'Cf': {'default': None,
+  'vdw': 2.45,
   'isotopes': {237: {'mass': 237.062199272, 'abundance': None},
    238: {'mass': 238.06149, 'abundance': None},
    239: {'mass': 239.062482, 'abundance': None},
@@ -3659,8 +3999,10 @@ elements = {'H': {'default': 1,
    253: {'mass': 253.085133723, 'abundance': None},
    254: {'mass': 254.087323575, 'abundance': None},
    255: {'mass': 255.091046, 'abundance': None},
-   256: {'mass': 256.093442, 'abundance': None}}},
+   256: {'mass': 256.093442, 'abundance': None}},
+  'color': '#A136D4'},
  'Es': {'default': None,
+  'vdw': 2.45,
   'isotopes': {239: {'mass': 239.06831, 'abundance': None},
    240: {'mass': 240.068949, 'abundance': None},
    241: {'mass': 241.068592, 'abundance': None},
@@ -3680,8 +4022,10 @@ elements = {'H': {'default': 1,
    255: {'mass': 255.090273504, 'abundance': None},
    256: {'mass': 256.093597, 'abundance': None},
    257: {'mass': 257.095979, 'abundance': None},
-   258: {'mass': 258.09952, 'abundance': None}}},
+   258: {'mass': 258.09952, 'abundance': None}},
+  'color': '#B31FD4'},
  'Fm': {'default': None,
+  'vdw': 2.45,
   'isotopes': {241: {'mass': 241.074311, 'abundance': None},
    242: {'mass': 242.07343, 'abundance': None},
    243: {'mass': 243.074414, 'abundance': None},
@@ -3701,8 +4045,10 @@ elements = {'H': {'default': 1,
    257: {'mass': 257.095105419, 'abundance': None},
    258: {'mass': 258.097077, 'abundance': None},
    259: {'mass': 259.100596, 'abundance': None},
-   260: {'mass': 260.102809, 'abundance': None}}},
+   260: {'mass': 260.102809, 'abundance': None}},
+  'color': '#B31FBA'},
  'Md': {'default': None,
+  'vdw': 2.46,
   'isotopes': {244: {'mass': 244.081157, 'abundance': None},
    245: {'mass': 245.080864, 'abundance': None},
    246: {'mass': 246.081713, 'abundance': None},
@@ -3721,8 +4067,10 @@ elements = {'H': {'default': 1,
    259: {'mass': 259.100445, 'abundance': None},
    260: {'mass': 260.10365, 'abundance': None},
    261: {'mass': 261.105828, 'abundance': None},
-   262: {'mass': 262.109144, 'abundance': None}}},
+   262: {'mass': 262.109144, 'abundance': None}},
+  'color': '#B30DA6'},
  'No': {'default': None,
+  'vdw': 2.46,
   'isotopes': {248: {'mass': 248.086623, 'abundance': None},
    249: {'mass': 249.087802, 'abundance': None},
    250: {'mass': 250.087565, 'abundance': None},
@@ -3739,8 +4087,10 @@ elements = {'H': {'default': 1,
    261: {'mass': 261.105696, 'abundance': None},
    262: {'mass': 262.107463, 'abundance': None},
    263: {'mass': 263.110714, 'abundance': None},
-   264: {'mass': 264.112734, 'abundance': None}}},
+   264: {'mass': 264.112734, 'abundance': None}},
+  'color': '#BD0D87'},
  'Lr': {'default': None,
+  'vdw': 2.46,
   'isotopes': {251: {'mass': 251.094289, 'abundance': None},
    252: {'mass': 252.095048, 'abundance': None},
    253: {'mass': 253.09503385, 'abundance': None},
@@ -3756,8 +4106,10 @@ elements = {'H': {'default': 1,
    263: {'mass': 263.111293, 'abundance': None},
    264: {'mass': 264.114198, 'abundance': None},
    265: {'mass': 265.116193, 'abundance': None},
-   266: {'mass': 266.119874, 'abundance': None}}},
+   266: {'mass': 266.119874, 'abundance': None}},
+  'color': '#C70066'},
  'Rf': {'default': None,
+  'vdw': None,
   'isotopes': {253: {'mass': 253.100528, 'abundance': None},
    254: {'mass': 254.100055, 'abundance': None},
    255: {'mass': 255.101267, 'abundance': None},
@@ -3773,8 +4125,10 @@ elements = {'H': {'default': 1,
    265: {'mass': 265.116683, 'abundance': None},
    266: {'mass': 266.118236, 'abundance': None},
    267: {'mass': 267.121787, 'abundance': None},
-   268: {'mass': 268.123968, 'abundance': None}}},
+   268: {'mass': 268.123968, 'abundance': None}},
+  'color': '#CC0059'},
  'Db': {'default': None,
+  'vdw': None,
   'isotopes': {255: {'mass': 255.106919, 'abundance': None},
    256: {'mass': 256.107674, 'abundance': None},
    257: {'mass': 257.107520042, 'abundance': None},
@@ -3790,8 +4144,10 @@ elements = {'H': {'default': 1,
    267: {'mass': 267.122399, 'abundance': None},
    268: {'mass': 268.125669, 'abundance': None},
    269: {'mass': 269.127911, 'abundance': None},
-   270: {'mass': 270.131399, 'abundance': None}}},
+   270: {'mass': 270.131399, 'abundance': None}},
+  'color': '#D1004F'},
  'Sg': {'default': None,
+  'vdw': None,
   'isotopes': {258: {'mass': 258.11304, 'abundance': None},
    259: {'mass': 259.114353, 'abundance': None},
    260: {'mass': 260.114383435, 'abundance': None},
@@ -3807,8 +4163,10 @@ elements = {'H': {'default': 1,
    270: {'mass': 270.130362, 'abundance': None},
    271: {'mass': 271.133782, 'abundance': None},
    272: {'mass': 272.135825, 'abundance': None},
-   273: {'mass': 273.139475, 'abundance': None}}},
+   273: {'mass': 273.139475, 'abundance': None}},
+  'color': '#D90045'},
  'Bh': {'default': None,
+  'vdw': None,
   'isotopes': {260: {'mass': 260.121443, 'abundance': None},
    261: {'mass': 261.121395733, 'abundance': None},
    262: {'mass': 262.122654688, 'abundance': None},
@@ -3827,8 +4185,10 @@ elements = {'H': {'default': 1,
    275: {'mass': 275.145766, 'abundance': None},
    276: {'mass': 276.149169, 'abundance': None},
    277: {'mass': 277.151477, 'abundance': None},
-   278: {'mass': 278.154988, 'abundance': None}}},
+   278: {'mass': 278.154988, 'abundance': None}},
+  'color': '#E00038'},
  'Hs': {'default': None,
+  'vdw': None,
   'isotopes': {263: {'mass': 263.128479, 'abundance': None},
    264: {'mass': 264.12835633, 'abundance': None},
    265: {'mass': 265.129791744, 'abundance': None},
@@ -3846,8 +4206,10 @@ elements = {'H': {'default': 1,
    277: {'mass': 277.151772, 'abundance': None},
    278: {'mass': 278.153753, 'abundance': None},
    279: {'mass': 279.157274, 'abundance': None},
-   280: {'mass': 280.159335, 'abundance': None}}},
+   280: {'mass': 280.159335, 'abundance': None}},
+  'color': '#E6002E'},
  'Mt': {'default': None,
+  'vdw': None,
   'isotopes': {265: {'mass': 265.135937, 'abundance': None},
    266: {'mass': 266.137062253, 'abundance': None},
    267: {'mass': 267.137189, 'abundance': None},
@@ -3865,8 +4227,10 @@ elements = {'H': {'default': 1,
    279: {'mass': 279.158439, 'abundance': None},
    280: {'mass': 280.161579, 'abundance': None},
    281: {'mass': 281.163608, 'abundance': None},
-   282: {'mass': 282.166888, 'abundance': None}}},
+   282: {'mass': 282.166888, 'abundance': None}},
+  'color': '#EB0026'},
  'Ds': {'default': None,
+  'vdw': None,
   'isotopes': {267: {'mass': 267.143726, 'abundance': None},
    268: {'mass': 268.143477, 'abundance': None},
    269: {'mass': 269.144750965, 'abundance': None},
@@ -3884,8 +4248,10 @@ elements = {'H': {'default': 1,
    281: {'mass': 281.164545, 'abundance': None},
    282: {'mass': 282.166174, 'abundance': None},
    283: {'mass': 283.169437, 'abundance': None},
-   284: {'mass': 284.171187, 'abundance': None}}},
+   284: {'mass': 284.171187, 'abundance': None}},
+  'color': 'pink'},
  'Rg': {'default': None,
+  'vdw': None,
   'isotopes': {272: {'mass': 272.153273, 'abundance': None},
    273: {'mass': 273.153393, 'abundance': None},
    274: {'mass': 274.155247, 'abundance': None},
@@ -3900,8 +4266,10 @@ elements = {'H': {'default': 1,
    283: {'mass': 283.171101, 'abundance': None},
    284: {'mass': 284.173882, 'abundance': None},
    285: {'mass': 285.175771, 'abundance': None},
-   286: {'mass': 286.178756, 'abundance': None}}},
+   286: {'mass': 286.178756, 'abundance': None}},
+  'color': 'pink'},
  'Cn': {'default': None,
+  'vdw': None,
   'isotopes': {276: {'mass': 276.161418, 'abundance': None},
    277: {'mass': 277.163535, 'abundance': None},
    278: {'mass': 278.164083, 'abundance': None},
@@ -3914,8 +4282,10 @@ elements = {'H': {'default': 1,
    285: {'mass': 285.177227, 'abundance': None},
    286: {'mass': 286.178691, 'abundance': None},
    287: {'mass': 287.181826, 'abundance': None},
-   288: {'mass': 288.183501, 'abundance': None}}},
+   288: {'mass': 288.183501, 'abundance': None}},
+  'color': 'pink'},
  'Nh': {'default': None,
+  'vdw': None,
   'isotopes': {278: {'mass': 278.170725, 'abundance': None},
    279: {'mass': 279.171187, 'abundance': None},
    280: {'mass': 280.173098, 'abundance': None},
@@ -3928,8 +4298,10 @@ elements = {'H': {'default': 1,
    287: {'mass': 287.184064, 'abundance': None},
    288: {'mass': 288.186764, 'abundance': None},
    289: {'mass': 289.188461, 'abundance': None},
-   290: {'mass': 290.191429, 'abundance': None}}},
+   290: {'mass': 290.191429, 'abundance': None}},
+  'color': 'pink'},
  'Fl': {'default': None,
+  'vdw': None,
   'isotopes': {284: {'mass': 284.181192, 'abundance': None},
    285: {'mass': 285.183503, 'abundance': None},
    286: {'mass': 286.184226, 'abundance': None},
@@ -3937,29 +4309,38 @@ elements = {'H': {'default': 1,
    288: {'mass': 288.187781, 'abundance': None},
    289: {'mass': 289.190517, 'abundance': None},
    290: {'mass': 290.191875, 'abundance': None},
-   291: {'mass': 291.194848, 'abundance': None}}},
+   291: {'mass': 291.194848, 'abundance': None}},
+  'color': 'pink'},
  'Mc': {'default': None,
+  'vdw': None,
   'isotopes': {287: {'mass': 287.19082, 'abundance': None},
    288: {'mass': 288.192879, 'abundance': None},
    289: {'mass': 289.193971, 'abundance': None},
    290: {'mass': 290.196235, 'abundance': None},
    291: {'mass': 291.197725, 'abundance': None},
-   292: {'mass': 292.200323, 'abundance': None}}},
+   292: {'mass': 292.200323, 'abundance': None}},
+  'color': 'pink'},
  'Lv': {'default': None,
+  'vdw': None,
   'isotopes': {289: {'mass': 289.198023, 'abundance': None},
    290: {'mass': 290.198635, 'abundance': None},
    291: {'mass': 291.201014, 'abundance': None},
    292: {'mass': 292.201969, 'abundance': None},
-   293: {'mass': 293.204583, 'abundance': None}}},
+   293: {'mass': 293.204583, 'abundance': None}},
+  'color': 'pink'},
  'Ts': {'default': None,
+  'vdw': None,
   'isotopes': {291: {'mass': 291.205748, 'abundance': None},
    292: {'mass': 292.207861, 'abundance': None},
    293: {'mass': 293.208727, 'abundance': None},
-   294: {'mass': 294.21084, 'abundance': None}}},
+   294: {'mass': 294.21084, 'abundance': None}},
+  'color': 'pink'},
  'Og': {'default': None,
+  'vdw': None,
   'isotopes': {293: {'mass': 293.213423, 'abundance': None},
    294: {'mass': 294.213979, 'abundance': None},
-   295: {'mass': 295.216178, 'abundance': None}}}}
+   295: {'mass': 295.216178, 'abundance': None}},
+  'color': 'pink'}}
 
 
 
@@ -3974,18 +4355,16 @@ if __name__ == '__main__':
     
     parser.add_argument('-n','--name',dest='molname',help='Molecule name (optional, if omitted it is read from line 2 of the input file).')
     parser.add_argument('-i','--isotopes',dest='isotopes',help='Use nonstandard isotopes. Specify as list of index-massnumber (example: -i 0-18,1-2,2-2,3-13 for ^18O,D,D,^13C, if those are the first 4 atoms in the file). Alternatively, add the mass number to the end of the respective line in the input file. Isotopes specified on the command line will supersede those specified in the input file.')
-    parser.add_argument('-m','--ch3','--methyl',dest='ch3_atoms',type=str,help='Indices of atoms in methyl rotor. The first atom starts from 0. (optional, example -m 0,2,3,4)')
+    parser.add_argument('-r','--rotor',dest='rotor_atoms',type=str,help='Indices of atoms in rotor. Atoms are indexed from 0. (optional, example -r 0,2,3,4)')
     parser.add_argument('-o','--outfile',dest='outfile',help='Name of output file. If not specified, will use {input_filename}-moments.csv')
     parser.add_argument('-p','--plotfile',dest='plotfile',help='Name of file for atomic coordindate plots. If not specified, will use {input_filename}-coords.png')
     
     args = parser.parse_args()
     
-    #construct ch3_atoms and isotopes if needed
-    ch3_atoms = args.ch3_atoms
-    if ch3_atoms is not None:
-        ch3_atoms = np.asarray(ch3_atoms.split(','),dtype=np.int64)
-        if ch3_atoms.size != 4:
-            raise Exception(f'Methyl groups must contain exactly 4 atoms (value entered: {args.ch3_atoms})')
+    #construct rotor_atoms and isotopes if needed
+    rotor_atoms = args.rotor_atoms
+    if rotor_atoms is not None:
+        rotor_atoms = np.asarray(rotor_atoms.split(','),dtype=np.int64)
     
     isotopes = None
     if args.isotopes is not None:
@@ -3997,7 +4376,7 @@ if __name__ == '__main__':
             isotopes[int(i[0])]=int(i[1])
             
     moments_calc(args.filename,
-                 ch3_atoms=ch3_atoms,
+                 rotor_atoms=rotor_atoms,
                  isotopes=isotopes,
                  outfile=args.outfile,
                  quiet=args.quiet,
