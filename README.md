@@ -4,8 +4,7 @@ Supports nonstandard isotopologues and will calculate internal rotation paramete
 
 [![DOI](https://zenodo.org/badge/674807150.svg)](https://zenodo.org/badge/latestdoi/674807150)
 
-![ac-ala-ome-ab](https://github.com/kncrabtree/moments/assets/20146313/0a6a9fe0-c6f4-4c14-aae4-46cc3a3c2d9a)
-
+![ac-ala-ome-ab](https://github.com/kncrabtree/moments/assets/20146313/f628be54-197b-4968-a62a-86a826726806)
 
 ### Installation and Requirements
 
