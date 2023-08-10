@@ -7,34 +7,56 @@ import scipy.constants as spc
 import numpy.linalg as la
 from scipy.spatial.transform import Rotation as R
 import argparse
+from pathlib import Path
+
 
 amu = spc.physical_constants['atomic mass constant'][0]
 hbar = spc.hbar
 amuMHz = hbar/4/np.pi/amu/1e-20*1e-6
+
+class Atom:
+    def __init__(self,symbol,mass_number = None):
+        self.symbol = symbol
+        self.special_isotope = mass_number is not None
+        self.element_dict = elements[symbol]
+        if self.special_isotope:
+            self.mass_number = mass_number
+            self.label = f'$^{{{self.mass_number}}}${self.symbol}'
+        else:
+            self.mass_number = self.element_dict['default']
+            self.label = self.symbol
+        if self.mass_number is None:
+            raise Exception(f'{self.symbol} does not have a most abundant isotope. The mass number must be specified explicitly.')
+        try:
+            self.mass = self.element_dict['isotopes'][self.mass_number]['mass']
+            self.abundance = self.element_dict['isotopes'][self.mass_number]['abundance']
+        except KeyError:
+            print(f'\nERROR: {self.label} is not a valid isotope.\n')
+            raise
+        if self.abundance is None:
+            self.abundance = 0.0
+        else:
+            self.abundance/=100.0
+        self.color = self.element_dict['color']
+        self.vdw = self.element_dict['vdw']
+        
 
 def readjmol(f,isotopes = None):
     with open(f,'r') as jmol:
         lines = jmol.readlines()
         name = lines[1].strip()
         if name == '':
-            name = f
+            name = f.split('.')[0]
         a = lines[2:]
         a = [x for x in a if 'x' != x.split()[0] and 'X' != x.split()[0]]
-        atoms = np.asarray([x.split()[0] for x in a])
+        syms = np.asarray([x.split()[0] for x in a])
         coords = np.asarray([x.split()[1:4] for x in a],dtype=np.float64)
         mass_numbers = np.asarray([int(x.split()[-1]) if (len(x.split()) == 5) else None for x in a])
         if isotopes is not None:
             for idx,mn in isotopes.items():
                 mass_numbers[idx]=mn
-        masses = []
-        for x,m in zip(atoms,mass_numbers):
-            e = elements[x]
-            if m is None:
-                m = e['default']
-                if m is None:
-                    raise ValueError(f'{x} does not have a most abundant isotope. Specify the mass number manually by appending to the end of the corresponding coordinate line in your input file.')
-            masses.append(e['isotopes'][m]['mass'])
-        masses = np.asarray(masses)    
+        atoms = np.asarray([Atom(sym,mn) for sym,mn in zip(syms,mass_numbers)])
+        masses = np.asarray([x.mass for x in atoms])
     return name,atoms,masses,coords
 
 def calc_I(coords,masses):
@@ -90,7 +112,7 @@ def rotate_coordinates(coords: np.ndarray, axis_coords: np.ndarray) -> np.ndarra
     # transform the coordinates into the principal axis
     return r_mat.apply(coords)
 
-def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=False,outfile=None,plotfile=None,bohr=False,molname=None):
+def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=False,nooutfile=False,outfile=None,plotfile=None,bohr=False,molname=None):
     """
     Computes spectroscopic parameters from atomic coordinates
     with up to one internal rotor.
@@ -111,6 +133,8 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         If true, text output is not printed
     noplots : bool
         If true, no figures are generated
+    nooutfile : bool
+        If true, no output csv file is generated
     outfile : string
         If provided, the output csv file will be named [outfile].csv.
     plotfile : string
@@ -153,9 +177,10 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         
      
     distance_matrix = distance(pcoords[None,:,:],pcoords[:,None,:])
-    vdw = np.asarray([elements[x]['vdw'] for x in a])
+    vdw = np.asarray([x.vdw for x in a])
     bond_distance_matrix = np.maximum(vdw[None,:],vdw[:,None])
     bond_matrix = distance_matrix < bond_distance_matrix
+    abundance = np.prod([x.abundance for x in a])
     
         
     df.loc[len(df)] = ['',name,'','']
@@ -174,13 +199,13 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
     if not quiet:
         print('Initial coordinates')
         print(f'Atom   Mass        X (A)         Y (A)         Z (A)')
-        for aa,mm,cc in zip(a,m,c):
-            print(f'{aa:<4} {mm: >10.6f} {cc[0]: 13.8f} {cc[1]: 13.8f} {cc[2]: 13.8f}')
+        for aa,cc in zip(a,c):
+            print(f'{aa.symbol:<4} {aa.mass: >10.6f} {cc[0]: 13.8f} {cc[1]: 13.8f} {cc[2]: 13.8f}')
         #note that pcoords is in order (a,b,c)
         print('\nPrincipal Axis Coordinates')
         print(f'Atom   Mass        a (A)         b (A)         c (A)')
-        for aa,mm,cc in zip(a,m,pcoords):
-            print(f'{aa:<4} {mm: >10.6f} {cc[0]: 13.8f} {cc[1]: 13.8f} {cc[2]: 13.8f}')
+        for aa,cc in zip(a,pcoords):
+            print(f'{aa.symbol:<4} {aa.mass: >10.6f} {cc[0]: 13.8f} {cc[1]: 13.8f} {cc[2]: 13.8f}')
             
         print('\nInteratomic Distance Matrix (A)')
         for a1 in range(len(a)//10 + 1):
@@ -188,10 +213,10 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
             cols = a[10*a1:10*a1+10]
             colstr = "      "
             for i,x in enumerate(cols):
-                colstr += f'{x+str(10*a1+i): ^7}'
+                colstr += f'{x.symbol+str(10*a1+i): ^7}'
             print(colstr)
             for i,(x,row) in enumerate(zip(a,distance_matrix)):
-                rowstr = f"{x+str(i): <5}"
+                rowstr = f"{x.symbol+str(i): <5}"
                 for d in row[10*a1:10*a1+10]:
                     rowstr += f' {d:6.3f}'
                 print(rowstr)
@@ -210,6 +235,8 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         print(f'Pbb    {(pmoi[2]+pmoi[0]-pmoi[1])/2: >15.9f} amu A^2')
         print(f'Pcc    {(pmoi[0]+pmoi[1]-pmoi[2])/2: >15.9f} amu A^2')
         print(f'Delta  {pmoi[2]-pmoi[1]-pmoi[0]: >15.9f} amu A^2')
+        
+        print(f'\nNatural Abundance: {abundance: 13.6g}')
        
     if not noplots:
         fig0,ax0 = plt.subplots(figsize=(6*2,4*2),dpi=300)
@@ -226,12 +253,12 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
 
 
         for i,(atom,(aa,bb,cc)) in enumerate(zip(a,pcoords[:])):
-            ax0.add_patch(plt.Circle((aa,bb),elements[atom]['vdw']/6,color=elements[atom]['color'],ec='black',zorder=(cc+minc)+100))
-            ax0.annotate(f'{atom}{i}',xy=(aa,bb),ha='center',va='center',zorder=(cc+minc)+100,fontsize=max(a_text,b_text))
-            ax1.add_patch(plt.Circle((aa,cc),elements[atom]['vdw']/6,color=elements[atom]['color'],ec='black',zorder=-(bb+minb)+100))
-            ax1.annotate(f'{atom}{i}',xy=(aa,cc),ha='center',va='center',zorder=-(bb+minb)+100,fontsize=max(a_text,c_text))
-            ax2.add_patch(plt.Circle((bb,cc),elements[atom]['vdw']/6,color=elements[atom]['color'],ec='black',zorder=(aa+mina)+100))
-            ax2.annotate(f'{atom}{i}',xy=(bb,cc),ha='center',va='center',zorder=(aa+mina)+100,fontsize=max(b_text,c_text))
+            ax0.add_patch(plt.Circle((aa,bb),atom.vdw/6,color=atom.color,ec='black',zorder=(cc+minc)+100))
+            ax0.annotate(f'{atom.label}{i}',xy=(aa,bb),ha='center',va='center',zorder=(cc+minc)+100,fontsize=max(a_text,b_text))
+            ax1.add_patch(plt.Circle((aa,cc),atom.vdw/6,color=atom.color,ec='black',zorder=-(bb+minb)+100))
+            ax1.annotate(f'{atom.label}{i}',xy=(aa,cc),ha='center',va='center',zorder=-(bb+minb)+100,fontsize=max(a_text,c_text))
+            ax2.add_patch(plt.Circle((bb,cc),atom.vdw/6,color=atom.color,ec='black',zorder=(aa+mina)+100))
+            ax2.annotate(f'{atom.label}{i}',xy=(bb,cc),ha='center',va='center',zorder=(aa+mina)+100,fontsize=max(b_text,c_text))
         for i in range(len(a)):
             for j in range(i,len(a)):
                 if bond_matrix[i,j]:
@@ -265,7 +292,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
     
     if rotor_atoms is not None:
         if not quiet:
-            print(f'\nRotor atoms: {str(rotor_atoms)}')
+            print(f'\nRotor atoms: {[ x.symbol+i for x,i in zip(a[rotor_atoms],rotor_atoms)]}')
     
         #extract atoms in the CH3 group
         cha = a[rotor_atoms]
@@ -293,7 +320,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         iam_vec_c = np.cross(np.asarray([0,0,1]),cpax[:,2])
         iam_rot_c = R.from_rotvec(iam_vec_c)
 
-        df.loc[len(df)] = ['Rotor',rotor_atoms,'','Atoms in rotor']
+        df.loc[len(df)] = ['Rotor',rotor_atoms,'index','Atoms in rotor']
         df.loc[len(df)] = ['A (rotor)',crc[0],'MHz','Rotational Constant of Rotor Atoms']
         df.loc[len(df)] = ['B (rotor)',crc[1],'MHz','Rotational Constant of Rotor Atoms']
         df.loc[len(df)] = ['C (rotor)',crc[2],'MHz','Rotational Constant of Rotor Atoms']
@@ -410,8 +437,10 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
                 ax.set_ylim(ymin,ymax)
                 ax.legend(frameon=False)
     
-    for i,(sym,mass) in enumerate(zip(a,m)):
-        df.loc[len(df)] = [f'{sym}{i}',mass,'amu',f'{pcoords[i,0]:.8f},{pcoords[i,1]:.8f},{pcoords[i,2]:.8f}']
+    for i,x in enumerate(a):
+        df.loc[len(df)] = [f'{x.symbol}{i}',x.mass,'amu',f'{pcoords[i,0]:.8f},{pcoords[i,1]:.8f},{pcoords[i,2]:.8f}']
+        
+    df.loc[len(df)] = ['f_a',abundance,'','Fractional abundance of this isotopologue']
     
     if outfile is None:
         outfile = xyzfile.split('.')[0]+"-moments.csv"
@@ -4349,15 +4378,25 @@ if __name__ == '__main__':
     
     parser.add_argument('filename',help='Name of xyz file (JMOLplot format)')
     
-    parser.add_argument('-b','--bohr',dest='bohr',action='store_true',help='Atomic coordinates in the input file are in Bohr')
-    parser.add_argument('-q','--quiet',dest='quiet',action='store_true',help='Do not print text; only write output files')
-    parser.add_argument('-s','--no-plots',dest='noplots',action='store_true',help='Do not generate atomic coordinate plots')
+    opt_group = parser.add_argument_group('Input/output options')
+    opt_group.add_argument('-b','--bohr',dest='bohr',action='store_true',help='Atomic coordinates in the input file are in Bohr')
+    opt_group.add_argument('-q','--quiet',dest='quiet',action='store_true',help='Do not print text; only write output files')
+    opt_group.add_argument('-s','--no-plots',dest='noplots',action='store_true',help='Do not generate atomic coordinate plots')
+    opt_group.add_argument('-d','--no-csv',dest='nocsv',action='store_true',help='Do not generate output csv file.')
+    opt_group.add_argument('-n','--name',dest='molname',help='Molecule name (optional, if omitted it is read from line 2 of the input file or the input filename).')
+    opt_group.add_argument('-r','--rotor',dest='rotor_atoms',type=str,help='Indices of atoms in rotor. Atoms are indexed from 0. (optional, example -r 0,2,3,4)')
+    opt_group.add_argument('-o','--outfile',dest='outfile',help='Name of output file. If not specified, will use {input_filebase}-moments.csv')
+    opt_group.add_argument('-p','--plotfile',dest='plotfile',help='Base filename for atomic coordindate plots. If not specified, will use {input_filebase}-ab.png, etc')
+    opt_group.add_argument('-bo','--batch-outfile',dest='boutfile',help='Name of output file for a batch calculation. If not specified, will use {input_filebase}-all.csv. This argument has no effect if only a single isotopologue is calculated.')
+    opt_group.add_argument('-bf','--batch-folder',dest='boutfolder',help='If provided, output files for each individual calculation in a batch will be generated and stored in the indidated folder. The folder will be created if it does not exist.')
     
-    parser.add_argument('-n','--name',dest='molname',help='Molecule name (optional, if omitted it is read from line 2 of the input file).')
-    parser.add_argument('-i','--isotopes',dest='isotopes',help='Use nonstandard isotopes. Specify as list of index-massnumber (example: -i 0-18,1-2,2-2,3-13 for ^18O,D,D,^13C, if those are the first 4 atoms in the file). Alternatively, add the mass number to the end of the respective line in the input file. Isotopes specified on the command line will supersede those specified in the input file.')
-    parser.add_argument('-r','--rotor',dest='rotor_atoms',type=str,help='Indices of atoms in rotor. Atoms are indexed from 0. (optional, example -r 0,2,3,4)')
-    parser.add_argument('-o','--outfile',dest='outfile',help='Name of output file. If not specified, will use {input_filename}-moments.csv')
-    parser.add_argument('-p','--plotfile',dest='plotfile',help='Name of file for atomic coordindate plots. If not specified, will use {input_filename}-coords.png')
+    isogroup = parser.add_mutually_exclusive_group()
+    isogroup.add_argument('-i','--isotopes',dest='isotopes',help='Use nonstandard isotopes. Specify as list of index-massnumber (example: -i 0-18,1-2,2-2,3-13 for ^18O,D,D,^13C, if those are the first 4 atoms in the file). Alternatively, add the mass number to the end of the respective line in the input file. Isotopes specified on the command line will supersede those specified in the input file. An atom may only appear once (if the same atom is indicated multiple times, only the last entry will be used).')
+    isogroup.add_argument('-a','--auto-single-subs',dest='autosubs',help='Perform calculation for parent and all singly-subsituted isotopologues involving the listed elements (case sensitive). The substitution will be the second-most naturally abundant isotopologue. This mode implies --no-csv and --no-plots; to override this behavior, provide the --batch-folder option, and the results from each calculation will be stored there. A single csv output file will be generated (see --batch-outfile). For example, to generate all D and ^13C singly-substituted isotopologues, use -a H,C.')
+    isogroup.add_argument('-m','--manual-single-subs',dest='manualsubs',help='Perform calculation for parent and the specified single isotope substitutions. The format is the same as for --isotopes, with the exception that the same atom may apper multiple times. This mode implies --no-csv and --no-plots; to override this behavior, provide the --batch-folder option, and the results from each calculation will be stored there. A single csv output file will be generated (see --batch-outfile). For example, assume atom 10 is S; to compute the parent (32S) as well as 33S and 34S, use -m 10-33,10-34.')
+    isogroup.add_argument('-e','--explicit-subs',dest='explicitsubs',help='Perform calculation for parent and the specified substitutions. The format is similar to --isotopes, with each set of substitutions separated by semicolons. The list must be contained in quotes. This mode implies --no-csv and --no-plots; to override this behavior, provide the --batch-folder option, and the results from each calculation will be stored there. A single csv output file will be generated (see --batch-outfile). For example, assume atoms 1 and 3 are C and atom 2 is O. Passing -e "1-13;3-13;1-13,3-13;2-18;1-13,2-18" would perform the following sets of calculations: 12-16-12, 13-16-12, 13-16-13, 12-16-13, 12-18-12, and 13-18-12.')
+    isogroup.add_argument('-c','--combo-subs',dest='combosubs',help='Perform calculation for parent and every combination of the indicated substitutions. The format is the same as for --isotopes, with the exception that the same atom may apper multiple times. This mode implies --no-csv and --no-plots; to override this behavior, provide the --batch-folder option, and the results from each calculation will be stored there. A single csv output file will be generated (see --batch-outfile). For example, assume atom 0 is C, atom 1 is D, and atom 2 is S. Passing -c 0-13,1-2,2-33,2-34 will perform the calculations 12-1-32, 13-1-32, 12-2-32, 12-1-33, 12-1-34, 13-2-32, 13-1-33, 13-1-34, 13-2-33, and 13-2-34.')
+
     
     args = parser.parse_args()
     
@@ -4365,24 +4404,200 @@ if __name__ == '__main__':
     rotor_atoms = args.rotor_atoms
     if rotor_atoms is not None:
         rotor_atoms = np.asarray(rotor_atoms.split(','),dtype=np.int64)
+        
+    batch_mode = args.autosubs is not None or args.manualsubs is not None or args.explicitsubs is not None or args.combosubs is not None
     
-    isotopes = None
-    if args.isotopes is not None:
-        isotopes = {}
-        ll = args.isotopes.split(',')
-        for l in ll:
-            #isotope should be specifed as index-massnum
-            i = l.split('-')
-            isotopes[int(i[0])]=int(i[1])
+    if not batch_mode:
+        isotopes = None
+        if args.isotopes is not None:
+            isotopes = {}
+            ll = args.isotopes.split(',')
+            for l in ll:
+                #isotope should be specifed as index-massnum
+                i = l.split('-')
+                isotopes[int(i[0])]=int(i[1])
+
+        moments_calc(args.filename,
+                     rotor_atoms=rotor_atoms,
+                     isotopes=isotopes,
+                     outfile=args.outfile,
+                     nooutfile=args.nocsv,
+                     quiet=args.quiet,
+                     noplots=args.noplots,
+                     plotfile=args.plotfile,
+                     bohr=args.bohr,
+                     molname=args.molname)
+        
+    else:
+        #generate a list of isotopes, perform calculation for each; collecting output.
+        isotopes = []
+        name,atoms,_,_ = readjmol(args.filename)
+        if args.autosubs is not None:
+            for i,a in enumerate(atoms):
+                if a.symbol in args.autosubs:
+                    k = a.element_dict['isotopes'].keys()
+                    abundances = [ x['abundance'] for x in a.element_dict['isotopes'].values() if x['abundance'] is not None ]
+                    mns = [ key for key in k if a.element_dict['isotopes'][key]['abundance'] is not None ]
+                    if len(abundances) < 2:
+                        raise Exception(f'{a.symbol} has fewer than 2 naturally occurring isotopes. Try --manual-subs instead.')
+                    iso_mn = mns[np.argsort(np.asarray(abundances))[-2]]
+                    isotopes.append({ i : iso_mn})
+        elif args.manualsubs is not None:
+            ll = args.manualsubs.split(',')
+            for l in ll:
+                #isotope should be specifed as index-massnum
+                i = l.split('-')
+                isotopes.append({int(i[0]):int(i[1])})
+        elif args.explicitsubs is not None:
+            il = args.explicitsubs.split(';')
+            for ii in il:
+                idict = {}
+                ll = ii.split(',')
+                for l in ll:
+                    i = l.split('-')
+                    idict[int(i[0])]=int(i[1])
+                isotopes.append(idict)
+        elif args.combosubs is not None:
+            ll = args.combosubs.split(',')
+            while len(ll)>0:
+                this_sub = ll.pop(0).split('-')
+                this_iso = { int(this_sub[0]) : int(this_sub[1]) }
+                i = this_iso.copy()
+                if i not in isotopes:
+                    isotopes.append(i)
+                for sub in ll:
+                    this_sub = sub.split('-')
+                    this_iso[int(this_sub[0])] = int(this_sub[1])
+                    i = this_iso.copy()
+                    if i not in isotopes:
+                        isotopes.append(i)
+        
+        if args.molname:
+            basename = args.molname
+        else:
+            basename = name
+
+        if args.boutfile is None:
+            boutfile = basename+'-all.csv'
+        else:
+            boutfile = args.boutfile
             
-    moments_calc(args.filename,
-                 rotor_atoms=rotor_atoms,
-                 isotopes=isotopes,
-                 outfile=args.outfile,
-                 quiet=args.quiet,
-                 noplots=args.noplots,
-                 plotfile=args.plotfile,
-                 bohr=args.bohr,
-                 molname=args.molname)
+        nocsv = args.nocsv
+        noplots = args.noplots
+        
+        if args.boutfolder is None:
+            nocsv = True
+            noplots = True
+            ofbase = None
+            pfbase = None
+        else:
+            p = Path(args.boutfolder)
+            p.mkdir(parents=True, exist_ok=True)
+            if args.outfile:
+                ofbase = str(p / args.outfile)
+            else:
+                ofbase = str(p / basename)
+            if args.plotfile:
+                pfbase = str(p / args.plotfile)
+            else:
+                pfbase = str(p / basename)
+            
+        of = ofbase + '1.csv' if ofbase else None
+        pf = ofbase + '1' if pfbase else None
+        
+        df,figs,_ = moments_calc(args.filename,
+                     rotor_atoms=rotor_atoms,
+                     isotopes=None,
+                     outfile=of,
+                     quiet=True,
+                     noplots=noplots,
+                     nooutfile = nocsv,
+                     plotfile=pf,
+                     bohr=args.bohr,
+                     molname=args.molname)
+        out_dfs = [df]
+        for f in figs:
+            plt.close(f)
+        for n,i in enumerate(isotopes):
+            of = ofbase + f'{n+2}.csv' if ofbase else None
+            pf = ofbase + f'{n+2}' if pfbase else None
+            df,figs,_ = moments_calc(args.filename,
+                     rotor_atoms=rotor_atoms,
+                     isotopes=i,
+                     outfile=of,
+                     quiet=True,
+                     noplots=noplots,
+                     nooutfile = nocsv,
+                     plotfile=pf,
+                     bohr=args.bohr,
+                     molname=args.molname)
+            out_dfs.append(df)
+            for f in figs:
+                plt.close(f)
+        
+        isotope_labels = ["Parent"]
+        for i in isotopes:
+            thisl = []
+            for key,val in i.items():
+                thisl.append(f'{atoms[key].symbol}{key}-{val}')
+            isotope_labels.append(str.join(",",thisl))
+            
+        total_df = pd.DataFrame()
+        total_df.insert(0,'param',out_dfs[0].param[1:])
+        for il,df in zip(isotope_labels,out_dfs):
+            total_df.insert(len(total_df.columns),il,df.value[1:])
+        total_df.insert(len(total_df.columns),'unit',out_dfs[0].unit[1:])
+        
+        if not args.nocsv:
+            total_df.to_csv(boutfile,index=False)
+        
+        if not args.quiet:
+            for n,l in enumerate(isotope_labels):
+                print(f'{n+1}:  {l}')
+                
+            step = 5
+            for i in range(len(isotope_labels)//step + 1):
+                print("")
+                cols = isotope_labels[i*step:i*step+step]
+                if len(cols) == 0:
+                    break
+                subdf = total_df[isotope_labels[i*step:i*step+step]]
+                subdf.insert(0,'param',total_df['param'])
+                subdf.insert(len(subdf.columns),'unit',total_df['unit'])
+                first_str = 'param     '
+                for j in range(len(cols)):
+                    s = f'Iso {i*step+j+1}'
+                    first_str += f'{s: >13} '
+                first_str += 'unit'
+                print(first_str)
+                for row in subdf.itertuples():
+                    this_row = [f'{row.param: <10}']
+                    if row.unit == 'MHz':
+                        this_row += list([ f' {x: >12.4f} ' for x in row[2:2+len(cols)] ])
+                    elif row.unit == 'cm-1':
+                        this_row += list([ f' {x: >12.9f} ' for x in row[2:2+len(cols)] ])
+                    elif row.unit == 'amu':
+                        this_row += list([ f' {x: >12.6f} ' for x in row[2:2+len(cols)] ])
+                    elif row.unit == 'deg':
+                        this_row += list([ f' {x: >12.5f} ' for x in row[2:2+len(cols)] ])
+                    elif row.unit == 'rad':
+                        this_row += list([ f' {x: >12.7f} ' for x in row[2:2+len(cols)] ])
+                    elif row.unit == 'amu A^2':
+                        this_row += list([ f' {x: >12.6g} ' for x in row[2:2+len(cols)] ])
+                    elif row.unit == 'index':
+                        this_row += list([ f' {str(x)[1:-1]: >12} ' for x in row[2:2+len(cols)] ])
+                    else:
+                        this_row += list([ f' {x: >12.6g} ' for x in row[2:2+len(cols)] ])
+                    this_row.append(row.unit)
+                    print("".join(this_row))
+                    
+                    
+                    
+                
+        
+                
+            
+                    
+        
     
     
