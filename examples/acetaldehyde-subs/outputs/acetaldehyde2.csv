@@ -1,0 +1,62 @@
+param,value,unit,comment
+,acetaldehyde,,
+A,55755.723673334396,MHz,PAM Rotational Constant
+B,10123.18281913227,MHz,PAM Rotational Constant
+C,9045.72803701651,MHz,PAM Rotational Constant
+A,1.8598107519213973,cm-1,PAM Rotational Constant
+B,0.3376730317589333,cm-1,PAM Rotational Constant
+C,0.3017330088075968,cm-1,PAM Rotational Constant
+Paa,48.36406469011286,amu A^2,PAM Second Moment
+Pbb,7.505292322760788,amu A^2,PAM Second Moment
+Pcc,1.5588714230527678,amu A^2,PAM Second Moment
+Delta,-3.117742846105532,amu A^2,PAM Intertial Defect
+Rotor,[1 4 5 6],index,Atoms in rotor
+A (rotor),267664.48741650145,MHz,Rotational Constant of Rotor Atoms
+B (rotor),257627.48975806872,MHz,Rotational Constant of Rotor Atoms
+C (rotor),158361.37534467614,MHz,Rotational Constant of Rotor Atoms
+A (rotor),8.928326256176247,cm-1,Rotational Constant of Rotor Atoms
+B (rotor),8.593528051932138,cm-1,Rotational Constant of Rotor Atoms
+C (rotor),5.282366888118184,cm-1,Rotational Constant of Rotor Atoms
+I_alpha,3.1913022227893038,amu A^2,Rotor Moment of Inertia
+lambda_a,-0.9210006521996562,,Direction Cosine of Rotor
+lambda_b,0.3895610332768891,,Direction Cosine of Rotor
+lambda_c,-2.2434760009575273e-07,,Direction Cosine of Rotor
+rho_a,-0.3242650409876674,,Component of rho Axis
+rho_b,0.02490252153019455,,Component of rho Axis
+rho_c,-1.2814913812200249e-08,,Component of rho Axis
+r,0.6916506337463046,,r Parameter for F Calculation
+rho_Ra,-0.0,rad,Rotation Angle for PAM-RAM Transformation
+rho_Rb,3.9403848560361923e-08,rad,Rotation Angle for PAM-RAM Transformation
+rho_Rc,0.07657134503805627,rad,Rotation Angle for PAM-RAM Transformation
+rho_Ra,-0.0,deg,Rotation Angle for PAM-RAM Transformation
+rho_Rb,2.257674219081383e-06,deg,Rotation Angle for PAM-RAM Transformation
+rho_Rc,4.387214902320622,deg,Rotation Angle for PAM-RAM Transformation
+theta_a,0.38956103327695374,rad,Total Rotaton Angle between Rotor and Principal Axis
+theta_b,0.9210006521996834,rad,Total Rotaton Angle between Rotor and Principal Axis
+theta_c,0.9999999999999749,rad,Total Rotaton Angle between Rotor and Principal Axis
+theta_a,22.32020306952487,deg,Total Rotaton Angle between Rotor and Principal Axis
+theta_b,52.769450299838084,deg,Total Rotaton Angle between Rotor and Principal Axis
+theta_c,57.29577951308089,deg,Total Rotaton Angle between Rotor and Principal Axis
+rho,0.32521985238496065,,Magnitude of rho Vector
+F,228961.51267427686,MHz,Torsion-Rotational Constant
+A_ram,55592.35085256102,MHz,RAM Rotational Constant
+B_ram,10093.520341033061,MHz,RAM Rotational Constant
+C_ram,9045.728037016503,MHz,RAM Rotational Constant
+D_ab,4265.12004789728,MHz,RAM Off-Diagonal Rotational Constant
+D_bc,1.5264402034016397e-05,MHz,RAM Off-Diagonal Rotational Constant
+D_ac,-0.0021948438332326597,MHz,RAM Off-Diagonal Rotational Constant
+F,7.637333981039538,cm-1,Torsion-Rotational Constant
+A_ram,1.8543612212072733,cm-1,RAM Rotational Constant
+B_ram,0.33668359799208364,cm-1,RAM Rotational Constant
+C_ram,0.30173300880759657,cm-1,RAM Rotational Constant
+D_ab,0.1422690909688355,cm-1,RAM Off-Diagonal Rotational Constant
+D_bc,5.091656453217511e-10,cm-1,RAM Off-Diagonal Rotational Constant
+D_ac,-7.321210973334958e-08,cm-1,RAM Off-Diagonal Rotational Constant
+C0,13.00335483534,amu,"-0.12303127,0.41172883,-0.00000071"
+C1,12.0,amu,"1.26416685,-0.17384768,-0.00000047"
+O2,15.99491461926,amu,"-1.14238159,-0.24320009,0.00000058"
+H3,1.007825031898,amu,"-0.16880351,1.51838208,-0.00000319"
+H4,1.007825031898,amu,"1.21660225,-1.26128215,-0.00017602"
+H5,1.007825031898,amu,"1.80884355,0.18003508,0.87951491"
+H6,1.007825031898,amu,"1.80896210,0.18031412,-0.87933009"
+f_a,0.0104560883045531,,Fractional abundance of this isotopologue
