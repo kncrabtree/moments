@@ -81,7 +81,8 @@ def abc(coords,masses):
     I = calc_I(coords,masses)
     pmoi,pax = la.eigh(I)
     _, _, rot = np.linalg.svd(I)
-    rc = amuMHz/pmoi
+    with np.errstate(divide='ignore', invalid='ignore'):
+        rc = amuMHz/pmoi
     return rc,pmoi,pax,rot
 
 def distance(c1,c2):
@@ -4392,6 +4393,7 @@ if __name__ == '__main__':
     
     isogroup = parser.add_mutually_exclusive_group()
     isogroup.add_argument('-i','--isotopes',dest='isotopes',help='Use nonstandard isotopes. Specify as list of index-massnumber (example: -i 0-18,1-2,2-2,3-13 for ^18O,D,D,^13C, if those are the first 4 atoms in the file). Alternatively, add the mass number to the end of the respective line in the input file. Isotopes specified on the command line will supersede those specified in the input file. An atom may only appear once (if the same atom is indicated multiple times, only the last entry will be used).')
+    isogroup.add_argument('-t','--threshold-subs',type=float,dest='thresholdsubs',help='Perform calculation for parent and every isotopologue whose natural abundance is above the indicated threshold. The threshold may be entered in either floating point or scientific notation. Note that the fractional abundance calculation is for the whole molecule, not the individual nucleus. For instance, for a hydrocarbon, a threshold of 0.01 will include all single-13C substitutions, while for a Cl-containing molecule it would not include any 13-C substitutions owing to the abundances of the two primary Cl isotopes. This mode implies --no-csv and --no-plots; to override this behavior, provide the --batch-folder option, and the results from each calculation will be stored there. A single csv output file will be generated (see --batch-outfile).')
     isogroup.add_argument('-a','--auto-single-subs',dest='autosubs',help='Perform calculation for parent and all singly-subsituted isotopologues involving the listed elements (case sensitive). The substitution will be the second-most naturally abundant isotopologue. This mode implies --no-csv and --no-plots; to override this behavior, provide the --batch-folder option, and the results from each calculation will be stored there. A single csv output file will be generated (see --batch-outfile). For example, to generate all D and ^13C singly-substituted isotopologues, use -a H,C.')
     isogroup.add_argument('-m','--manual-single-subs',dest='manualsubs',help='Perform calculation for parent and the specified single isotope substitutions. The format is the same as for --isotopes, with the exception that the same atom may apper multiple times. This mode implies --no-csv and --no-plots; to override this behavior, provide the --batch-folder option, and the results from each calculation will be stored there. A single csv output file will be generated (see --batch-outfile). For example, assume atom 10 is S; to compute the parent (32S) as well as 33S and 34S, use -m 10-33,10-34.')
     isogroup.add_argument('-e','--explicit-subs',dest='explicitsubs',help='Perform calculation for parent and the specified substitutions. The format is similar to --isotopes, with each set of substitutions separated by semicolons. The list must be contained in quotes. This mode implies --no-csv and --no-plots; to override this behavior, provide the --batch-folder option, and the results from each calculation will be stored there. A single csv output file will be generated (see --batch-outfile). For example, assume atoms 1 and 3 are C and atom 2 is O. Passing -e "1-13;3-13;1-13,3-13;2-18;1-13,2-18" would perform the following sets of calculations: 12-16-12, 13-16-12, 13-16-13, 12-16-13, 12-18-12, and 13-18-12.')
@@ -4405,7 +4407,7 @@ if __name__ == '__main__':
     if rotor_atoms is not None:
         rotor_atoms = np.asarray(rotor_atoms.split(','),dtype=np.int64)
         
-    batch_mode = args.autosubs is not None or args.manualsubs is not None or args.explicitsubs is not None or args.combosubs is not None
+    batch_mode = args.autosubs is not None or args.manualsubs is not None or args.explicitsubs is not None or args.combosubs is not None or args.thresholdsubs is not None
     
     if not batch_mode:
         isotopes = None
@@ -4471,6 +4473,26 @@ if __name__ == '__main__':
                     i = this_iso.copy()
                     if i not in isotopes:
                         isotopes.append(i)
+        elif args.thresholdsubs is not None:
+            for i,a in enumerate(atoms):
+                k = a.element_dict['isotopes'].keys()
+                abundances = [ x['abundance']/100 for x in a.element_dict['isotopes'].values() if x['abundance'] is not None and x['abundance'] > args.thresholdsubs*100 ]
+                mns = np.asarray([ key for key in k if a.element_dict['isotopes'][key]['abundance'] is not None
+                                  and a.element_dict['isotopes'][key]['abundance'] > args.thresholdsubs*100 ])
+                if len(mns) < 2:
+                    continue
+
+                mns = mns[np.argsort(np.asarray(abundances))][::-1][1:]
+                for iso_mn in mns:
+                    for d in isotopes:
+                        if i not in d.keys():
+                            new_d = d.copy()
+                            new_d[i] = iso_mn
+                            if np.prod(np.asarray([Atom(a.symbol,new_d[x]).abundance if x in new_d else Atom(a.symbol).abundance for x,a in enumerate(atoms)])) > args.thresholdsubs:
+                                isotopes.append(new_d)
+                    if np.prod(np.asarray([Atom(a.symbol,iso_mn).abundance if x==i else Atom(a.symbol).abundance for x,a in enumerate(atoms)])) > args.thresholdsubs:
+                        isotopes.append({ i : iso_mn})
+
         
         if args.molname:
             basename = args.molname

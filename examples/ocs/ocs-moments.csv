@@ -1,0 +1,16 @@
+param,value,unit,comment
+,ocs,,
+A,inf,MHz,PAM Rotational Constant
+B,5725.647440772762,MHz,PAM Rotational Constant
+C,5725.647440772762,MHz,PAM Rotational Constant
+A,inf,cm-1,PAM Rotational Constant
+B,0.1909870408004981,cm-1,PAM Rotational Constant
+C,0.1909870408004981,cm-1,PAM Rotational Constant
+Paa,88.2658274665315,amu A^2,PAM Second Moment
+Pbb,0.0,amu A^2,PAM Second Moment
+Pcc,0.0,amu A^2,PAM Second Moment
+Delta,0.0,amu A^2,PAM Intertial Defect
+C0,12.0,amu,"0.59026093,0.00000000,0.00000000"
+O1,15.99491461926,amu,"1.76026093,0.00000000,0.00000000"
+S2,35.967080692,amu,"-0.97973907,0.00000000,0.00000000"
+f_a,0.00015594532976400004,,Fractional abundance of this isotopologue
