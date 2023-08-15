@@ -76,6 +76,14 @@ def calc_I(coords,masses):
 
 def com(coords,masses):
     return np.sum(np.multiply(masses[:,np.newaxis],coords),axis=0)/np.sum(masses)
+    
+def rz(a):
+    return np.asarray([[np.cos(a),-np.sin(a),0],[np.sin(a),np.cos(a),0],[0,0,1]])
+def ry(a):
+    return np.asarray([[np.cos(a),0,np.sin(a)],[0,1,0],[-np.sin(a),0,np.cos(a)]])
+def rx(a):
+    return np.asarray([[1,0,0],[0,np.cos(a),-np.sin(a)],[0,np.sin(a),np.cos(a)]])
+
 
 def abc(coords,masses):
     I = calc_I(coords,masses)
@@ -113,7 +121,7 @@ def rotate_coordinates(coords: np.ndarray, axis_coords: np.ndarray) -> np.ndarra
     # transform the coordinates into the principal axis
     return r_mat.apply(coords)
 
-def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=False,nooutfile=False,outfile=None,plotfile=None,bohr=False,molname=None):
+def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=False,plot3d=False,nooutfile=False,outfile=None,plotfile=None,bohr=False,molname=None):
     """
     Computes spectroscopic parameters from atomic coordinates
     with up to one internal rotor.
@@ -134,6 +142,8 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         If true, text output is not printed
     noplots : bool
         If true, no figures are generated
+    plot3d : bool
+        If true, generate 3D plots
     nooutfile : bool
         If true, no output csv file is generated
     outfile : string
@@ -240,56 +250,131 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         print(f'\nNatural Abundance: {abundance: 13.6g}')
        
     if not noplots:
-        fig0,ax0 = plt.subplots(figsize=(6*2,4*2),dpi=300)
-        fig1,ax1 = plt.subplots(figsize=(6*2,4*2),dpi=300)
-        fig2,ax2 = plt.subplots(figsize=(6*2,4*2),dpi=300)
-        axes = [ax0,ax1,ax2]
         mina = np.min(pcoords[:,0])
         minb = np.min(pcoords[:,1])
         minc = np.min(pcoords[:,2])
 
-        a_text = 12-((np.max(pcoords[:,0])-mina)//3)
-        b_text = 12-((np.max(pcoords[:,1])-minb)//3)
-        c_text = 12-((np.max(pcoords[:,2])-minc)//3)
+        if not plot3d:
+            a_text = 12-((np.max(pcoords[:,0])-mina)//3)
+            b_text = 12-((np.max(pcoords[:,1])-minb)//3)
+            c_text = 12-((np.max(pcoords[:,2])-minc)//3)
+            fig0,ax0 = plt.subplots(figsize=(6*2,4*2),dpi=300)
+            fig1,ax1 = plt.subplots(figsize=(6*2,4*2),dpi=300)
+            fig2,ax2 = plt.subplots(figsize=(6*2,4*2),dpi=300)
+            axes = [ax0,ax1,ax2]
 
 
-        for i,(atom,(aa,bb,cc)) in enumerate(zip(a,pcoords[:])):
-            ax0.add_patch(plt.Circle((aa,bb),atom.vdw/6,color=atom.color,ec='black',zorder=(cc+minc)+100))
-            ax0.annotate(f'{atom.label}{i}',xy=(aa,bb),ha='center',va='center',zorder=(cc+minc)+100,fontsize=max(a_text,b_text))
-            ax1.add_patch(plt.Circle((aa,cc),atom.vdw/6,color=atom.color,ec='black',zorder=-(bb+minb)+100))
-            ax1.annotate(f'{atom.label}{i}',xy=(aa,cc),ha='center',va='center',zorder=-(bb+minb)+100,fontsize=max(a_text,c_text))
-            ax2.add_patch(plt.Circle((bb,cc),atom.vdw/6,color=atom.color,ec='black',zorder=(aa+mina)+100))
-            ax2.annotate(f'{atom.label}{i}',xy=(bb,cc),ha='center',va='center',zorder=(aa+mina)+100,fontsize=max(b_text,c_text))
-        for i in range(len(a)):
-            for j in range(i,len(a)):
-                if bond_matrix[i,j]:
-                    aa1 = pcoords[i,0]
-                    bb1 = pcoords[i,1]
-                    cc1 = pcoords[i,2]
-                    aa2 = pcoords[j,0]
-                    bb2 = pcoords[j,1]
-                    cc2 = pcoords[j,2]
-                    ax0.plot([aa1,aa2],[bb1,bb2],color='black',zorder=min(cc1,cc2)+minc+99.9)
-                    ax1.plot([aa1,aa2],[cc1,cc2],color='black',zorder=min(bb1,bb2)+minb+99.9)
-                    ax2.plot([bb1,bb2],[cc1,cc2],color='black',zorder=min(aa1,aa2)+mina+99.9)
 
-        ax0.set_xlabel('a (A)',loc='right')
-        ax0.set_ylabel('b (A)',loc='top')
-        ax1.set_xlabel('a (A)',loc='right')
-        ax1.set_ylabel('c (A)',loc='top')
-        ax2.set_xlabel('b (A)',loc='right')
-        ax2.set_ylabel('c (A)',loc='top')
+            for i,(atom,(aa,bb,cc)) in enumerate(zip(a,pcoords[:])):
+                ax0.add_patch(plt.Circle((aa,bb),atom.vdw/6,color=atom.color,ec='black',zorder=(cc+minc)+100))
+                ax0.annotate(f'{atom.label}{i}',xy=(aa,bb),ha='center',va='center',zorder=(cc+minc)+100,fontsize=max(a_text,b_text))
+                ax1.add_patch(plt.Circle((aa,cc),atom.vdw/6,color=atom.color,ec='black',zorder=-(bb+minb)+100))
+                ax1.annotate(f'{atom.label}{i}',xy=(aa,cc),ha='center',va='center',zorder=-(bb+minb)+100,fontsize=max(a_text,c_text))
+                ax2.add_patch(plt.Circle((bb,cc),atom.vdw/6,color=atom.color,ec='black',zorder=(aa+mina)+100))
+                ax2.annotate(f'{atom.label}{i}',xy=(bb,cc),ha='center',va='center',zorder=(aa+mina)+100,fontsize=max(b_text,c_text))
+            for i in range(len(a)):
+                for j in range(i,len(a)):
+                    if bond_matrix[i,j]:
+                        aa1 = pcoords[i,0]
+                        bb1 = pcoords[i,1]
+                        cc1 = pcoords[i,2]
+                        aa2 = pcoords[j,0]
+                        bb2 = pcoords[j,1]
+                        cc2 = pcoords[j,2]
+                        ax0.plot([aa1,aa2],[bb1,bb2],color='black',zorder=min(cc1,cc2)+minc+99.9)
+                        ax1.plot([aa1,aa2],[cc1,cc2],color='black',zorder=min(bb1,bb2)+minb+99.9)
+                        ax2.plot([bb1,bb2],[cc1,cc2],color='black',zorder=min(aa1,aa2)+mina+99.9)
 
-        for ax in axes:
-            ax.set_aspect('equal')
-            ax.tick_params(axis='both',direction='inout',zorder=-1,grid_color='k',grid_alpha=0.3,grid_linestyle=':',grid_zorder=-1)
-            ax.grid()
-            ax.spines['left'].set_position('zero')
-            ax.spines['left'].set_zorder(-1)
-            ax.spines['bottom'].set_position('zero')
-            ax.spines['bottom'].set_zorder(-1)
-            ax.spines['right'].set_visible(False)
-            ax.spines['top'].set_visible(False)
+            ax0.set_xlabel('a (A)',loc='right')
+            ax0.set_ylabel('b (A)',loc='top')
+            ax1.set_xlabel('a (A)',loc='right')
+            ax1.set_ylabel('c (A)',loc='top')
+            ax2.set_xlabel('b (A)',loc='right')
+            ax2.set_ylabel('c (A)',loc='top')
+
+            for ax in axes:
+                ax.set_aspect('equal')
+                ax.tick_params(axis='both',direction='inout',zorder=-1,grid_color='k',grid_alpha=0.3,grid_linestyle=':',grid_zorder=-1)
+                ax.grid()
+                ax.spines['left'].set_position('zero')
+                ax.spines['left'].set_zorder(-1)
+                ax.spines['bottom'].set_position('zero')
+                ax.spines['bottom'].set_zorder(-1)
+                ax.spines['right'].set_visible(False)
+                ax.spines['top'].set_visible(False)
+        else:
+            a_text = 10-((np.max(pcoords[:,0])-mina)//2)
+            b_text = 10-((np.max(pcoords[:,1])-minb)//2)
+            c_text = 10-((np.max(pcoords[:,2])-minc)//2)
+            fig0 = plt.Figure(figsize=(6*2,4*2),dpi=300)
+            fig1 = plt.Figure(figsize=(6*2,4*2),dpi=300)
+            fig2 = plt.Figure(figsize=(6*2,4*2),dpi=300)
+            
+            ax0 = fig0.add_subplot(projection='3d')
+            ax1 = fig1.add_subplot(projection='3d')
+            ax2 = fig2.add_subplot(projection='3d')
+            axes = [ax0,ax1,ax2]
+            
+            u = np.linspace(0,2*np.pi,100)
+            v = np.linspace(0,np.pi,100)
+            for j,ax in enumerate(axes):
+                ax.computed_zorder=False
+                for i,(atom,coords) in enumerate(zip(a,pcoords[:])):
+                    (xx,yy,zz) = np.roll(np.asarray(coords),0)
+                    x = atom.vdw/6*np.outer(np.cos(u),np.sin(v))+xx
+                    y = atom.vdw/6*np.outer(np.sin(u),np.sin(v))+yy
+                    z = atom.vdw/6*np.outer(np.ones(np.size(u)),np.cos(v))+zz
+                    ax.plot_surface(x,y,z,color=atom.color,zorder=yy)
+                    ax.text(xx,
+                            yy,
+                            zz,f'{atom.label}{i}',ha='center',va='center',zorder=atom.vdw/6+yy+0.01,fontsize=min(a_text,min(b_text,c_text)))
+                for i in range(len(a)):
+                    for k in range(i+1,len(a)):
+                        if bond_matrix[i,k]:
+                            cc1 = pcoords[i,:]
+                            cc2 = pcoords[k,:]
+                            bl = distance_matrix[i,k]
+                            bond = np.linspace(0,bl,100)
+                            radius = 0.05
+                            (xx1,yy1,zz1) = np.roll(np.asarray(cc1),0)
+                            (xx2,yy2,zz2) = np.roll(np.asarray(cc2),0)
+                            tt,z = np.meshgrid(u,bond)
+                            x = radius*np.cos(tt)
+                            y = radius*np.sin(tt)
+                            xyz = np.asarray([np.ravel(x),np.ravel(y),np.ravel(z)])
+                            theta = np.arccos((zz2-zz1)/bl)
+                            phi = np.arctan2((yy2-yy1),(xx2-xx1))
+                            xyz = rz(phi) @ ry(theta) @ xyz
+                            x = xyz[0,:].reshape(100,100) + xx1
+                            y = xyz[1,:].reshape(100,100) + yy1
+                            z = xyz[2,:].reshape(100,100) + zz1
+                            if yy1 <= yy2:
+                                zorder = yy1 - a[i].vdw/6 - .05
+                            else:
+                                zorder = yy2 - a[k].vdw/6 - 0.05
+                            ax.plot_surface(x,y,z,color='#dddddd',zorder=zorder)
+                ax.set_aspect('equal')
+                ax.set_axis_off()
+                xmin,xmax = ax.get_xlim()
+                ymin,ymax = ax.get_ylim()
+                zmin,zmax = ax.get_zlim()
+                ax.plot(np.linspace(xmin,xmax,50),np.zeros(50),np.zeros(50),color='#00000088',zorder=-0)
+                ax.plot(np.zeros(50),np.linspace(ymin,ymax,50),np.zeros(50),color='#00000088',zorder=-0)
+                ax.plot(np.zeros(50),np.zeros(50),np.linspace(zmin,zmax,50),color='#00000088',zorder=-0)
+                ax.text(xmax,.02*ymax,0.02*zmax,'a')
+                ax.text(.02*xmax,ymax,0.02*zmax,'b')
+                ax.text(.02*xmax,.02*ymax,zmax,'c')
+                
+                ax.set_xlim(xmin/1.25,xmax/1.25)
+                ax.set_ylim(ymin/1.25,ymax/1.25)
+                ax.set_zlim(zmin/1.25,zmax/1.25)
+            
+            ax0.view_init(elev=110,roll=30)
+            ax2.view_init(elev=20,roll=0,azim=-150)
+            ax1.view_init(elev=10,roll=00,azim=-80)
+
+                    
+            
     
     if rotor_atoms is not None:
         if not quiet:
@@ -304,7 +389,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
 
         crc, cmoi, cpax, crot = abc(chc,chm)
         i_alpha = cmoi[2] #methyl MOI
-
+        
         rho = cpax[:,2]*i_alpha/pmoi
         r = 1-i_alpha*(np.sum(cpax[:,2]**2/pmoi))
         F = amuMHz/r/i_alpha
@@ -422,21 +507,39 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         
         if not noplots:
             mins = [mina,minb,minc]
-        
-            for ax,i1,i2,i3 in zip(axes,[0,0,1],[1,2,2],[2,1,0]):
-                xmin,xmax = ax.get_xlim()
-                ymin,ymax = ax.get_ylim()
-                mm = rho_norm[i2]/rho_norm[i1]
-                ax.plot([xmin,xmax],[mm*xmin,mm*xmax],color='red',label=r'$\rho$',zorder=mins[i3]+99.9)
-                mx0 = ch_com[i1]
-                my0 = ch_com[i2]
-                mslope = (cpax[i2,i3]/cpax[i1,i3])
-                if i3 == 1:
-                    mslope = mslope**-1
-                ax.plot([xmin,xmax],[mslope*(xmin-mx0)+my0,mslope*(xmax-mx0)+my0],color='blue',zorder=mins[i3]+99.9,label='Rotor axis')
-                ax.set_xlim(xmin,xmax)
-                ax.set_ylim(ymin,ymax)
-                ax.legend(frameon=False)
+            if not plot3d:
+                for ax,i1,i2,i3 in zip(axes,[0,0,1],[1,2,2],[2,1,0]):
+                    xmin,xmax = ax.get_xlim()
+                    ymin,ymax = ax.get_ylim()
+                    mm = rho_norm[i2]/rho_norm[i1]
+                    ax.plot([xmin,xmax],[mm*xmin,mm*xmax],color='red',label=r'$\rho$',zorder=mins[i3]+99.9)
+                    mx0 = ch_com[i1]
+                    my0 = ch_com[i2]
+                    mslope = (cpax[i2,i3]/cpax[i1,i3])
+                    if i3 == 1:
+                        mslope = mslope**-1
+                    ax.plot([xmin,xmax],[mslope*(xmin-mx0)+my0,mslope*(xmax-mx0)+my0],color='blue',zorder=mins[i3]+99.9,label='Rotor axis')
+                    ax.set_xlim(xmin,xmax)
+                    ax.set_ylim(ymin,ymax)
+                    ax.legend(frameon=False)
+            else:
+                for j,ax in enumerate(axes):
+                    sf = max(xmax,max(ymax,zmax))
+                    mcom = np.roll(ch_com,0)
+                    mpax = np.roll(cpax,0,axis=1)
+                    rho_roll = np.roll(rho_norm,0)
+                    xx = np.linspace(-10*sf*rho_roll[0],10*sf*rho_roll[0],100)
+                    yy = np.linspace(-10*sf*rho_roll[1],10*sf*rho_roll[1],100)
+                    zz = np.linspace(-10*sf*rho_roll[2],10*sf*rho_roll[2],100)
+                    ax.plot(xx,yy,zz,color='red',zorder=-1000,label=r'$\rho$')
+                    xx = np.linspace(-10*sf*cpax[0,2]+mcom[0],10*sf*cpax[0,2]+mcom[0],100)
+                    yy = np.linspace(-10*sf*cpax[1,2]+mcom[1],10*sf*cpax[1,2]+mcom[1],100)
+                    zz = np.linspace(-10*sf*cpax[2,2]+mcom[2],10*sf*cpax[2,2]+mcom[2],100)
+                    ax.plot(xx,yy,zz,color='blue',zorder=-1000,label=r'Rotor axis')
+                    
+                    ax.legend(frameon=False)
+                    
+                
     
     for i,x in enumerate(a):
         df.loc[len(df)] = [f'{x.symbol}{i}',x.mass,'amu',f'{pcoords[i,0]:.8f},{pcoords[i,1]:.8f},{pcoords[i,2]:.8f}']
@@ -4382,14 +4485,15 @@ if __name__ == '__main__':
     opt_group = parser.add_argument_group('Input/output options')
     opt_group.add_argument('-b','--bohr',dest='bohr',action='store_true',help='Atomic coordinates in the input file are in Bohr')
     opt_group.add_argument('-q','--quiet',dest='quiet',action='store_true',help='Do not print text; only write output files')
+    opt_group.add_argument('-3d','--3d-plots',dest='plot3d',action='store_true',help='Generate 3D plots instead of 2D')
     opt_group.add_argument('-s','--no-plots',dest='noplots',action='store_true',help='Do not generate atomic coordinate plots')
-    opt_group.add_argument('-d','--no-csv',dest='nocsv',action='store_true',help='Do not generate output csv file.')
-    opt_group.add_argument('-n','--name',dest='molname',help='Molecule name (optional, if omitted it is read from line 2 of the input file or the input filename).')
+    opt_group.add_argument('-d','--no-csv',dest='nocsv',action='store_true',help='Do not generate output csv file')
+    opt_group.add_argument('-n','--name',dest='molname',help='Molecule name (optional, if omitted it is read from line 2 of the input file or the input filename)')
     opt_group.add_argument('-r','--rotor',dest='rotor_atoms',type=str,help='Indices of atoms in rotor. Atoms are indexed from 0. (optional, example -r 0,2,3,4)')
     opt_group.add_argument('-o','--outfile',dest='outfile',help='Name of output file. If not specified, will use {input_filebase}-moments.csv')
     opt_group.add_argument('-p','--plotfile',dest='plotfile',help='Base filename for atomic coordindate plots. If not specified, will use {input_filebase}-ab.png, etc')
-    opt_group.add_argument('-bo','--batch-outfile',dest='boutfile',help='Name of output file for a batch calculation. If not specified, will use {input_filebase}-all.csv. This argument has no effect if only a single isotopologue is calculated.')
-    opt_group.add_argument('-bf','--batch-folder',dest='boutfolder',help='If provided, output files for each individual calculation in a batch will be generated and stored in the indidated folder. The folder will be created if it does not exist.')
+    opt_group.add_argument('-bo','--batch-outfile',dest='boutfile',help='Name of output file for a batch calculation. If not specified, will use {input_filebase}-all.csv. This argument has no effect if only a single isotopologue is calculated')
+    opt_group.add_argument('-bf','--batch-folder',dest='boutfolder',help='If provided, output files for each individual calculation in a batch will be generated and stored in the indidated folder. The folder will be created if it does not exist')
     
     isogroup = parser.add_mutually_exclusive_group()
     isogroup.add_argument('-i','--isotopes',dest='isotopes',help='Use nonstandard isotopes. Specify as list of index-massnumber (example: -i 0-18,1-2,2-2,3-13 for ^18O,D,D,^13C, if those are the first 4 atoms in the file). Alternatively, add the mass number to the end of the respective line in the input file. Isotopes specified on the command line will supersede those specified in the input file. An atom may only appear once (if the same atom is indicated multiple times, only the last entry will be used).')
@@ -4425,6 +4529,7 @@ if __name__ == '__main__':
                      outfile=args.outfile,
                      nooutfile=args.nocsv,
                      quiet=args.quiet,
+                     plot3d=args.plot3d,
                      noplots=args.noplots,
                      plotfile=args.plotfile,
                      bohr=args.bohr,
@@ -4533,6 +4638,7 @@ if __name__ == '__main__':
                      outfile=of,
                      quiet=True,
                      noplots=noplots,
+                     plot3d=args.plot3d,
                      nooutfile = nocsv,
                      plotfile=pf,
                      bohr=args.bohr,
