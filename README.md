@@ -6,6 +6,9 @@ Supports nonstandard isotopologues and will calculate internal rotation paramete
 
 ![ac-ala-ome-ab](https://github.com/kncrabtree/moments/assets/20146313/f628be54-197b-4968-a62a-86a826726806)
 
+![ac-ala-ome-ab](https://github.com/kncrabtree/moments/assets/20146313/91a41a6d-8679-405a-b368-c57fda93f501)
+
+
 ### Installation and Requirements
 
 The program is self-contained in a single script: `moments.py`. On Mac/Linux, you can make the script executable and place in a directory contained in your `PATH` environment variable. The program requires only Python3, numpy, scipy, matplotlib, and pandas. It can also be imported and used as part of a python script; see moments-example.ipynb.
@@ -59,11 +62,10 @@ See below for further details about these options.
 ### Usage - Details
 
 ```
-usage: Moments Calculator [-h] [-b] [-q] [-s] [-d] [-n MOLNAME]
+usage: Moments Calculator [-h] [-b] [-q] [-3d] [-s] [-d] [-n MOLNAME]
                           [-r ROTOR_ATOMS] [-o OUTFILE] [-p PLOTFILE]
                           [-bo BOUTFILE] [-bf BOUTFOLDER]
-                          [-i ISOTOPES | -t THRESHOLDSUBS | -a AUTOSUBS |
-                            -m MANUALSUBS | -e EXPLICITSUBS | -c COMBOSUBS]
+                          [-i ISOTOPES | -t THRESHOLDSUBS | -a AUTOSUBS | -m MANUALSUBS | -e EXPLICITSUBS | -c COMBOSUBS]
                           filename
 
 Computes rotational constants and optionally internal rotation constants
@@ -160,11 +162,12 @@ optional arguments:
 Input/output options:
   -b, --bohr            Atomic coordinates in the input file are in Bohr
   -q, --quiet           Do not print text; only write output files
+  -3d, --3d-plots       Generate 3D plots instead of 2D
   -s, --no-plots        Do not generate atomic coordinate plots
-  -d, --no-csv          Do not generate output csv file.
+  -d, --no-csv          Do not generate output csv file
   -n MOLNAME, --name MOLNAME
                         Molecule name (optional, if omitted it is read from
-                        line 2 of the input file or the input filename).
+                        line 2 of the input file or the input filename)
   -r ROTOR_ATOMS, --rotor ROTOR_ATOMS
                         Indices of atoms in rotor. Atoms are indexed from
                         0. (optional, example -r 0,2,3,4)
@@ -178,12 +181,12 @@ Input/output options:
                         Name of output file for a batch calculation. If not
                         specified, will use {input_filebase}-all.csv. This
                         argument has no effect if only a single
-                        isotopologue is calculated.
+                        isotopologue is calculated
   -bf BOUTFOLDER, --batch-folder BOUTFOLDER
                         If provided, output files for each individual
                         calculation in a batch will be generated and stored
                         in the indidated folder. The folder will be created
-                        if it does not exist.
+                        if it does not exist
 ```
 
 
