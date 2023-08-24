@@ -88,38 +88,29 @@ def rx(a):
 def abc(coords,masses):
     I = calc_I(coords,masses)
     pmoi,pax = la.eigh(I)
-    _, _, rot = np.linalg.svd(I)
     with np.errstate(divide='ignore', invalid='ignore'):
         rc = amuMHz/pmoi
-    return rc,pmoi,pax,rot
+    return rc,pmoi,pax
 
 def distance(c1,c2):
     return np.sqrt(np.sum((c1-c2)**2,axis=-1))
 
-#adapted from Kelvin Lee's PyMoments program
-def rotate_coordinates(coords: np.ndarray, axis_coords: np.ndarray) -> np.ndarray:
-    """
-    Given a set of coordinates, `coords`, and the eigenvectors of the principal
-    moments of inertia tensor, use the scipy `Rotation` class to rotate the
-    coordinates into the principal axis frame.
 
-    Parameters
-    ----------
-    coords : np.ndarray
-        NumPy 1D array containing xyz coordinates
-    axis_coords : np.ndarray
-        NumPy 2D array (shape 3x3) containing the principal axis
-        vectors
+def vec_align(vec1,vec2):
+    v1 = vec1/la.norm(vec1,2)
+    v2 = vec2/la.norm(vec2,2)
+    
+    cp = np.cross(v1,v2)
+    s = la.norm(cp,2)
+    c = v1 @ v2
+    skewmat = np.asarray([[0,-cp[2],cp[1]],[cp[2],0,-cp[0]],[-cp[1],cp[0],0]])
+    smsq = skewmat@skewmat
+    
+    if np.any(cp):
+        return np.eye(3)+skewmat+smsq*((1-c)/(s**2))
+    else:
+        return np.eye(3)
 
-    Returns
-    -------
-    np.ndarray
-        NumPy 1D array containing the rotated coordinates.
-    """
-    # Create a Rotation object from the eigenvectors
-    r_mat = R.from_matrix(axis_coords)
-    # transform the coordinates into the principal axis
-    return r_mat.apply(coords)
 
 def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=False,plot3d=False,nooutfile=False,outfile=None,plotfile=None,bohr=False,molname=None):
     """
@@ -167,33 +158,33 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         List containing the three Axes objects. If noplots is True, list is empty
     """
     
-    #read in coordinates from jmol like file
     df = pd.DataFrame(columns=['param','value','unit','comment'])
     name,a,m,c = readjmol(xyzfile,isotopes)
     if molname is not None:
         name = molname
     if bohr:
         c *= spc.physical_constants['Bohr radius'][0]*1e10
-        
+
     #compute PAM quantities
-    rc,pmoi,pax,rot = abc(c,m)
-    pcoords = rotate_coordinates(c,rot)
-    
+    rc,pmoi,pax = abc(c,m)
+    r_mat = R.from_matrix(pax)
+    pcoords = r_mat.apply(c)
+
     #ensure pcoords is in order a,b,c
     pi = []
     pi.append(np.sum(m*(pcoords[:,1]**2 + pcoords[:,2]**2)))
     pi.append(np.sum(m*(pcoords[:,2]**2 + pcoords[:,0]**2)))
     pi.append(np.sum(m*(pcoords[:,0]**2 + pcoords[:,1]**2)))
     pcoords = pcoords[:,np.argsort(pi)]
-        
-     
+
+
     distance_matrix = distance(pcoords[None,:,:],pcoords[:,None,:])
     vdw = np.asarray([x.vdw for x in a])
     bond_distance_matrix = np.maximum(vdw[None,:],vdw[:,None])
     bond_matrix = distance_matrix < bond_distance_matrix
     abundance = np.prod([x.abundance for x in a])
-    
-        
+
+
     df.loc[len(df)] = ['',name,'','']
     df.loc[len(df)] = ['A',rc[0],'MHz','PAM Rotational Constant']
     df.loc[len(df)] = ['B',rc[1],'MHz','PAM Rotational Constant']
@@ -205,7 +196,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
     df.loc[len(df)] = ['Pbb',(pmoi[2]+pmoi[0]-pmoi[1])/2,'amu A^2','PAM Second Moment']
     df.loc[len(df)] = ['Pcc',(pmoi[0]+pmoi[1]-pmoi[2])/2,'amu A^2','PAM Second Moment']
     df.loc[len(df)] = ['Delta',pmoi[2]-pmoi[1]-pmoi[0],'amu A^2','PAM Intertial Defect']
-    
+
 
     if not quiet:
         print('Initial coordinates')
@@ -217,7 +208,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         print(f'Atom   Mass        a (A)         b (A)         c (A)')
         for aa,cc in zip(a,pcoords):
             print(f'{aa.symbol:<4} {aa.mass: >10.6f} {cc[0]: 13.8f} {cc[1]: 13.8f} {cc[2]: 13.8f}')
-            
+
         print('\nInteratomic Distance Matrix (A)')
         for a1 in range(len(a)//10 + 1):
             print("")
@@ -240,15 +231,15 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         print(f'A      {rc[0]/29979.2458: >12.9f} cm-1')
         print(f'B      {rc[1]/29979.2458: >12.9f} cm-1')
         print(f'C      {rc[2]/29979.2458: >12.9f} cm-1')
-        
+
         print('\nSecond moments and Inertial Defect')
         print(f'Paa    {(pmoi[1]+pmoi[2]-pmoi[0])/2: >15.9f} amu A^2')
         print(f'Pbb    {(pmoi[2]+pmoi[0]-pmoi[1])/2: >15.9f} amu A^2')
         print(f'Pcc    {(pmoi[0]+pmoi[1]-pmoi[2])/2: >15.9f} amu A^2')
         print(f'Delta  {pmoi[2]-pmoi[1]-pmoi[0]: >15.9f} amu A^2')
-        
+
         print(f'\nNatural Abundance: {abundance: 13.6g}')
-       
+
     if not noplots:
         mina = np.min(pcoords[:,0])
         minb = np.min(pcoords[:,1])
@@ -309,25 +300,30 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
             fig0 = plt.Figure(figsize=(6*2,4*2),dpi=300)
             fig1 = plt.Figure(figsize=(6*2,4*2),dpi=300)
             fig2 = plt.Figure(figsize=(6*2,4*2),dpi=300)
-            
+
             ax0 = fig0.add_subplot(projection='3d')
             ax1 = fig1.add_subplot(projection='3d')
             ax2 = fig2.add_subplot(projection='3d')
             axes = [ax0,ax1,ax2]
-            
+
             u = np.linspace(0,2*np.pi,100)
             v = np.linspace(0,np.pi,100)
             for j,ax in enumerate(axes):
                 ax.computed_zorder=False
                 for i,(atom,coords) in enumerate(zip(a,pcoords[:])):
-                    (xx,yy,zz) = np.roll(np.asarray(coords),0)
+                    rotation = R.from_rotvec([90,0,0],degrees=True)
+                    if j==1:
+                        rotation = R.from_rotvec([0,0,0],degrees=True)
+                    elif j == 2:
+                        rotation = R.from_rotvec([0,0,-90],degrees=True)
+                    (xx,yy,zz) = rotation.apply(coords)
                     x = atom.vdw/6*np.outer(np.cos(u),np.sin(v))+xx
                     y = atom.vdw/6*np.outer(np.sin(u),np.sin(v))+yy
                     z = atom.vdw/6*np.outer(np.ones(np.size(u)),np.cos(v))+zz
-                    ax.plot_surface(x,y,z,color=atom.color,zorder=yy)
+                    ax.plot_surface(x,y,z,color=atom.color,zorder=yy*((-1)**j))
                     ax.text(xx,
                             yy,
-                            zz,f'{atom.label}{i}',ha='center',va='center',zorder=atom.vdw/6+yy+0.01,fontsize=min(a_text,min(b_text,c_text)))
+                            zz,f'{atom.label}{i}',ha='center',va='center',zorder=yy*((-1)**j)+atom.vdw/6+0.01,fontsize=min(a_text,min(b_text,c_text)))
                 for i in range(len(a)):
                     for k in range(i+1,len(a)):
                         if bond_matrix[i,k]:
@@ -336,8 +332,8 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
                             bl = distance_matrix[i,k]
                             bond = np.linspace(0,bl,100)
                             radius = 0.05
-                            (xx1,yy1,zz1) = np.roll(np.asarray(cc1),0)
-                            (xx2,yy2,zz2) = np.roll(np.asarray(cc2),0)
+                            (xx1,yy1,zz1) = rotation.apply(cc1)
+                            (xx2,yy2,zz2) = rotation.apply(cc2)
                             tt,z = np.meshgrid(u,bond)
                             x = radius*np.cos(tt)
                             y = radius*np.sin(tt)
@@ -348,38 +344,46 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
                             x = xyz[0,:].reshape(100,100) + xx1
                             y = xyz[1,:].reshape(100,100) + yy1
                             z = xyz[2,:].reshape(100,100) + zz1
-                            if yy1 <= yy2:
-                                zorder = yy1 - a[i].vdw/6 - .05
+                            if yy1*((-1)**j) <= yy2*((-1)**j):
+                                zorder = yy1 - a[i].vdw/6*((-1)**j) - .05*((-1)**j)
                             else:
-                                zorder = yy2 - a[k].vdw/6 - 0.05
-                            ax.plot_surface(x,y,z,color='#dddddd',zorder=zorder)
+                                zorder = yy2 - a[k].vdw/6*((-1)**j) - 0.05*((-1)**j)
+                            ax.plot_surface(x,y,z,color='#dddddd',zorder=zorder*((-1)**j))
                 ax.set_aspect('equal')
                 ax.set_axis_off()
                 xmin,xmax = ax.get_xlim()
                 ymin,ymax = ax.get_ylim()
                 zmin,zmax = ax.get_zlim()
-                ax.plot(np.linspace(xmin,xmax,50),np.zeros(50),np.zeros(50),color='#00000088',zorder=-0)
-                ax.plot(np.zeros(50),np.linspace(ymin,ymax,50),np.zeros(50),color='#00000088',zorder=-0)
-                ax.plot(np.zeros(50),np.zeros(50),np.linspace(zmin,zmax,50),color='#00000088',zorder=-0)
-                ax.text(xmax,.02*ymax,0.02*zmax,'a')
-                ax.text(.02*xmax,ymax,0.02*zmax,'b')
-                ax.text(.02*xmax,.02*ymax,zmax,'c')
+                ax.plot(np.linspace(xmin,xmax,50),np.zeros(50),np.zeros(50),color='#00000088',zorder=-0,lw=0.5)
+                ax.plot(np.zeros(50),np.linspace(ymin,ymax,50),np.zeros(50),color='#00000088',zorder=-0,lw=0.5)
+                ax.plot(np.zeros(50),np.zeros(50),np.linspace(zmin,zmax,50),color='#00000088',zorder=-0,lw=0.5)
                 
+                if(j==0):
+                    ax.text(xmax,.02*ymax,0.02*zmax,'a')
+                    ax.text(.02*xmax,-ymax,-0.02*zmax,'c')
+                    ax.text(.02*xmax,.02*ymax,zmax,'b')
+                elif(j==1):
+                    ax.text(xmax,.02*ymax,0.02*zmax,'a')
+                    ax.text(.02*xmax,ymax,0.02*zmax,'b')
+                    ax.text(.02*xmax,.02*ymax,zmax,'c')
+                elif(j==2):
+                    ax.text(xmax,.02*ymax,0.02*zmax,'b')
+                    ax.text(.02*xmax,ymax,0.02*zmax,'a')
+                    ax.text(.02*xmax,.02*ymax,zmax,'c')
+
                 ax.set_xlim(xmin/1.25,xmax/1.25)
                 ax.set_ylim(ymin/1.25,ymax/1.25)
                 ax.set_zlim(zmin/1.25,zmax/1.25)
-            
-            ax0.view_init(elev=110,roll=30)
-            ax2.view_init(elev=20,roll=0,azim=-150)
-            ax1.view_init(elev=10,roll=00,azim=-80)
+                ax.view_init(elev=20,roll=0,azim=-80)
 
-                    
-            
-    
+
+
+
+
     if rotor_atoms is not None:
         if not quiet:
-            print(f'\nRotor atoms: {[ x.symbol+i for x,i in zip(a[rotor_atoms],rotor_atoms)]}')
-    
+            print(f'\nRotor atoms: {[ x.symbol+str(i) for x,i in zip(a[rotor_atoms],rotor_atoms)]}')
+
         #extract atoms in the CH3 group
         cha = a[rotor_atoms]
         chm = m[rotor_atoms]
@@ -387,32 +391,30 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         chc_orig = chc.copy()
         ch_com = com(chc,chm)
 
-        crc, cmoi, cpax, crot = abc(chc,chm)
+        crc, cmoi, cpax = abc(chc,chm)
         i_alpha = cmoi[2] #methyl MOI
-        
+
+        #convention: cpax[0,2] has same sign as ch_com[0]
+        if cpax[0,2]*ch_com[0] < 0:
+            cpax *= -1
+
         rho = cpax[:,2]*i_alpha/pmoi
         r = 1-i_alpha*(np.sum(cpax[:,2]**2/pmoi))
         F = amuMHz/r/i_alpha
 
         rho_norm = rho/np.sqrt(np.sum(rho**2))
-        rot_vec = np.cross(np.asarray([1,0,0]),rho_norm)
-        ram_rot = R.from_rotvec(rot_vec)
+        #rot_vec = np.cross(np.asarray([1,0,0]),rho_norm)
+        ram_rot = R.from_matrix(vec_align([1,0,0],rho))
         ram_rc = ram_rot.apply(np.eye(3)*rc)
-        
-        iam_vec_a = np.cross(np.asarray([1,0,0]),cpax[:,2])
-        iam_rot_a = R.from_rotvec(iam_vec_a)
-        iam_vec_b = np.cross(np.asarray([0,1,0]),cpax[:,2])
-        iam_rot_b = R.from_rotvec(iam_vec_b)
-        iam_vec_c = np.cross(np.asarray([0,0,1]),cpax[:,2])
-        iam_rot_c = R.from_rotvec(iam_vec_c)
+
 
         df.loc[len(df)] = ['Rotor',rotor_atoms,'index','Atoms in rotor']
         df.loc[len(df)] = ['A (rotor)',crc[0],'MHz','Rotational Constant of Rotor Atoms']
         df.loc[len(df)] = ['B (rotor)',crc[1],'MHz','Rotational Constant of Rotor Atoms']
-        df.loc[len(df)] = ['C (rotor)',crc[2],'MHz','Rotational Constant of Rotor Atoms']
+        df.loc[len(df)] = ['C (rotor)',crc[2],'MHz','Rotational Constant of Rotor Atoms (F0)']
         df.loc[len(df)] = ['A (rotor)',crc[0]/29979.2458,'cm-1','Rotational Constant of Rotor Atoms']
         df.loc[len(df)] = ['B (rotor)',crc[1]/29979.2458,'cm-1','Rotational Constant of Rotor Atoms']
-        df.loc[len(df)] = ['C (rotor)',crc[2]/29979.2458,'cm-1','Rotational Constant of Rotor Atoms']
+        df.loc[len(df)] = ['C (rotor)',crc[2]/29979.2458,'cm-1','Rotational Constant of Rotor Atoms (F0)']
         df.loc[len(df)] = ['I_alpha',i_alpha,'amu A^2','Rotor Moment of Inertia']
         df.loc[len(df)] = ['lambda_a',cpax[0,2],'','Direction Cosine of Rotor']
         df.loc[len(df)] = ['lambda_b',cpax[1,2],'','Direction Cosine of Rotor']
@@ -421,34 +423,42 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         df.loc[len(df)] = ['rho_b',rho[1],'','Component of rho Axis']
         df.loc[len(df)] = ['rho_c',rho[2],'','Component of rho Axis']
         df.loc[len(df)] = ['r',r,'','r Parameter for F Calculation' ]
-        df.loc[len(df)] = ['rho_Ra',rot_vec[0],'rad','Rotation Angle for PAM-RAM Transformation']
-        df.loc[len(df)] = ['rho_Rb',rot_vec[1],'rad','Rotation Angle for PAM-RAM Transformation']
-        df.loc[len(df)] = ['rho_Rc',rot_vec[2],'rad','Rotation Angle for PAM-RAM Transformation']
-        df.loc[len(df)] = ['rho_Ra',rot_vec[0]*180/np.pi,'deg','Rotation Angle for PAM-RAM Transformation']
-        df.loc[len(df)] = ['rho_Rb',rot_vec[1]*180/np.pi,'deg','Rotation Angle for PAM-RAM Transformation']
-        df.loc[len(df)] = ['rho_Rc',rot_vec[2]*180/np.pi,'deg','Rotation Angle for PAM-RAM Transformation']
-        df.loc[len(df)] = ['theta_a',iam_rot_a.magnitude(),'rad','Total Rotaton Angle between Rotor and Principal Axis']
-        df.loc[len(df)] = ['theta_b',iam_rot_b.magnitude(),'rad','Total Rotaton Angle between Rotor and Principal Axis']
-        df.loc[len(df)] = ['theta_c',iam_rot_c.magnitude(),'rad','Total Rotaton Angle between Rotor and Principal Axis']
-        df.loc[len(df)] = ['theta_a',iam_rot_a.magnitude()*180/np.pi,'deg','Total Rotaton Angle between Rotor and Principal Axis']
-        df.loc[len(df)] = ['theta_b',iam_rot_b.magnitude()*180/np.pi,'deg','Total Rotaton Angle between Rotor and Principal Axis']
-        df.loc[len(df)] = ['theta_c',iam_rot_c.magnitude()*180/np.pi,'deg','Total Rotaton Angle between Rotor and Principal Axis']
         df.loc[len(df)] = ['rho',np.sqrt(np.sum(rho**2)),'','Magnitude of rho Vector']
-        df.loc[len(df)] = ['F',F,'MHz','Torsion-Rotational Constant']
-        df.loc[len(df)] = ['A_ram',ram_rc[0,0],'MHz','RAM Rotational Constant']
-        df.loc[len(df)] = ['B_ram',ram_rc[1,1],'MHz','RAM Rotational Constant']
-        df.loc[len(df)] = ['C_ram',ram_rc[2,2],'MHz','RAM Rotational Constant']
-        df.loc[len(df)] = ['D_ab',ram_rc[0,1],'MHz','RAM Off-Diagonal Rotational Constant']
-        df.loc[len(df)] = ['D_bc',ram_rc[1,2],'MHz','RAM Off-Diagonal Rotational Constant']
-        df.loc[len(df)] = ['D_ac',ram_rc[0,2],'MHz','RAM Off-Diagonal Rotational Constant']
-        df.loc[len(df)] = ['F',F/29979.2458,'cm-1','Torsion-Rotational Constant']
-        df.loc[len(df)] = ['A_ram',ram_rc[0,0]/29979.2458,'cm-1','RAM Rotational Constant']
-        df.loc[len(df)] = ['B_ram',ram_rc[1,1]/29979.2458,'cm-1','RAM Rotational Constant']
-        df.loc[len(df)] = ['C_ram',ram_rc[2,2]/29979.2458,'cm-1','RAM Rotational Constant']
-        df.loc[len(df)] = ['D_ab',ram_rc[0,1]/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
-        df.loc[len(df)] = ['D_bc',ram_rc[1,2]/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
-        df.loc[len(df)] = ['D_ac',ram_rc[0,2]/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
-        
+        df.loc[len(df)] = ['F',F,'MHz','RAM Torsion-Rotational Constant']
+        df.loc[len(df)] = ['A_ram',np.abs(ram_rc[0,0]),'MHz','RAM Rotational Constant']
+        df.loc[len(df)] = ['B_ram',np.abs(ram_rc[1,1]),'MHz','RAM Rotational Constant']
+        df.loc[len(df)] = ['C_ram',np.abs(ram_rc[2,2]),'MHz','RAM Rotational Constant']
+        df.loc[len(df)] = ['D_ab',ram_rc[0,1]+ram_rc[1,0],'MHz','RAM Off-Diagonal Rotational Constant']
+        df.loc[len(df)] = ['D_bc',ram_rc[1,2]+ram_rc[2,1],'MHz','RAM Off-Diagonal Rotational Constant']
+        df.loc[len(df)] = ['D_ac',ram_rc[0,2]+ram_rc[2,0],'MHz','RAM Off-Diagonal Rotational Constant']
+        df.loc[len(df)] = ['F',F/29979.2458,'cm-1','RAM Torsion-Rotational Constant']
+        df.loc[len(df)] = ['A_ram',np.abs(ram_rc[0,0])/29979.2458,'cm-1','RAM Rotational Constant']
+        df.loc[len(df)] = ['B_ram',np.abs(ram_rc[1,1])/29979.2458,'cm-1','RAM Rotational Constant']
+        df.loc[len(df)] = ['C_ram',np.abs(ram_rc[2,2])/29979.2458,'cm-1','RAM Rotational Constant']
+        df.loc[len(df)] = ['D_ab',(ram_rc[0,1]+ram_rc[1,0])/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
+        df.loc[len(df)] = ['D_bc',(ram_rc[1,2]+ram_rc[2,1])/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
+        df.loc[len(df)] = ['D_ac',(ram_rc[0,2]+ram_rc[2,0])/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
+
+        reps = { 'Ir' : [1,2,0], 'IIr' : [2,0,1], 'IIIr' : [0,1,2], 'Il' : [2,1,0], 'IIl' : [0,2,1], 'IIIl' : [1,0,2] }
+
+        for rep,ax in reps.items():
+            rho_rep = rho[ax] #rho[0] = rho_a, 1=b, 2=c
+            lambda_rep = cpax[:,2][ax] #cpax[0,2] = lambda_a, 1,2 = b, 2,2 = c
+
+            delta = np.arccos(lambda_rep[2])
+            epsilon = np.arccos(lambda_rep[0]*np.sign(lambda_rep[1])/np.sqrt(lambda_rep[0]**2+lambda_rep[1]**2))
+            gamma = np.arccos(rho_rep[2]/la.norm(rho_rep,2))
+            beta = np.arccos(rho_rep[0]*np.sign(rho_rep[1])/np.sqrt(rho_rep[0]**2+rho_rep[1]**2))
+
+            df.loc[len(df)] = [f'd{rep}',delta,'rad',f'CAM delta angle ({rep} representation)']
+            df.loc[len(df)] = [f'e{rep}',epsilon,'rad',f'CAM epsilon angle ({rep} representation)']
+            df.loc[len(df)] = [f'g{rep}',gamma,'rad',f'CAM gamma angle ({rep} representation)']
+            df.loc[len(df)] = [f'b{rep}',beta,'rad',f'CAM beta angle ({rep} representation)']
+            df.loc[len(df)] = [f'd{rep}',delta*180/np.pi,'deg',f'CAM delta angle ({rep} representation)']
+            df.loc[len(df)] = [f'e{rep}',epsilon*180/np.pi,'deg',f'CAM epsilon angle ({rep} representation)']
+            df.loc[len(df)] = [f'g{rep}',gamma*180/np.pi,'deg',f'CAM gamma angle ({rep} representation)']
+            df.loc[len(df)] = [f'b{rep}',beta*180/np.pi,'deg',f'CAM beta angle ({rep} representation)']
+
         if not quiet:
             print('\nRotor Rotational Constants')
             print(f'A {crc[0]: >12.4f} MHz')
@@ -463,48 +473,72 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
             print(f'lambda_a   {cpax[0,2]: 10.7f}')
             print(f'lambda_b   {cpax[1,2]: 10.7f}')
             print(f'lambda_c   {cpax[2,2]: 10.7f}')
-            print(f'\nRotor Axis angle with respect to principal axes')
-            print(f'theta_a    {iam_rot_a.magnitude():>10.7f} rad')
-            print(f'theta_b    {iam_rot_b.magnitude():>10.7f} rad')
-            print(f'theta_c    {iam_rot_c.magnitude():>10.7f} rad')
-            print(f'------------------------')
-            print(f'theta_a    {iam_rot_a.magnitude()*180/np.pi:>10.5f} deg')
-            print(f'theta_b    {iam_rot_b.magnitude()*180/np.pi:>10.5f} deg')
-            print(f'theta_c    {iam_rot_c.magnitude()*180/np.pi:>10.5f} deg')
+
 
             print('\nrho Axis')
             print(f'rho_a      {rho[0]: 10.7f}')
             print(f'rho_b      {rho[1]: 10.7f}')
             print(f'rho_c      {rho[2]: 10.7f}')
+            print(f'|rho|      {la.norm(rho,2): 10.7f}')
             print(f'r          {r: 10.7f}')
-
-            print('\nRAM Rotation Vector')
-            print(f'Ra   {rot_vec[0]: 10.7f} rad')
-            print(f'Rb   {rot_vec[1]: 10.7f} rad')
-            print(f'Rc   {rot_vec[2]: 10.7f} rad')
-            print(f'------------------------')
-            print(f'Ra   {rot_vec[0]*180/np.pi: 10.5f} deg')
-            print(f'Rb   {rot_vec[1]*180/np.pi: 10.5f} deg')
-            print(f'Rc   {rot_vec[2]*180/np.pi: 10.5f} deg')
+            
+            print('\nPAM-RAM rotation matrix')
+            rm = ram_rot.as_matrix()
+            for row in rm:
+                row_str = ""
+                for col in row:
+                    row_str += f'{col: 12.9f} '
+                print(row_str)
 
             print('\nRho Axis System Parameters')
             print(f'rho       {np.sqrt(np.sum(rho**2)): >12.9f}')
             print(f'F         {F: >12.4f} MHz')
-            print(f'A_ram     {ram_rc[0,0]: >12.4f} MHz')
-            print(f'B_ram     {ram_rc[1,1]: >12.4f} MHz')
-            print(f'C_ram     {ram_rc[2,2]: >12.4f} MHz')
-            print(f'D_ab      {ram_rc[0,1]: >12.4f} MHz')
-            print(f'D_bc      {ram_rc[1,2]: >12.4f} MHz')
-            print(f'D_ac      {ram_rc[0,2]: >12.4f} MHz')
+            print(f'A_ram     {np.abs(ram_rc[0,0]): >12.4f} MHz')
+            print(f'B_ram     {np.abs(ram_rc[1,1]): >12.4f} MHz')
+            print(f'C_ram     {np.abs(ram_rc[2,2]): >12.4f} MHz')
+            print(f'D_ab      {ram_rc[0,1]+ram_rc[1,0]: >12.4f} MHz')
+            print(f'D_bc      {ram_rc[1,2]+ram_rc[2,1]: >12.4f} MHz')
+            print(f'D_ac      {ram_rc[0,2]+ram_rc[2,0]: >12.4f} MHz')
             print(f'------------------------')
             print(f'F         {F/29979.2458: >12.9f} cm-1')
-            print(f'A_ram     {ram_rc[0,0]/29979.2458: >12.9f} cm-1')
-            print(f'B_ram     {ram_rc[1,1]/29979.2458: >12.9f} cm-1')
-            print(f'C_ram     {ram_rc[2,2]/29979.2458: >12.9f} cm-1')
-            print(f'D_ab      {ram_rc[0,1]/29979.2458: >12.9f} cm-1')
-            print(f'D_bc      {ram_rc[1,2]/29979.2458: >12.9f} cm-1')
-            print(f'D_ac      {ram_rc[0,2]/29979.2458: >12.9f} cm-1')
-        
+            print(f'A_ram     {np.abs(ram_rc[0,0])/29979.2458: >12.9f} cm-1')
+            print(f'B_ram     {np.abs(ram_rc[1,1])/29979.2458: >12.9f} cm-1')
+            print(f'C_ram     {np.abs(ram_rc[2,2])/29979.2458: >12.9f} cm-1')
+            print(f'D_ab      {(ram_rc[0,1]+ram_rc[1,0])/29979.2458: >12.9f} cm-1')
+            print(f'D_bc      {(ram_rc[1,2]+ram_rc[2,1])/29979.2458: >12.9f} cm-1')
+            print(f'D_ac      {(ram_rc[0,2]+ram_rc[2,0])/29979.2458: >12.9f} cm-1')
+
+            print('\nCombined Axis System Parameters')
+
+
+            re_reps = [{ 'Ir' : [1,2,0], 'IIr' : [2,0,1], 'IIIr' : [0,1,2]},{'Il' : [2,1,0], 'IIl' : [0,2,1], 'IIIl' : [1,0,2] }]
+            for reps in re_reps:
+                print(f'        {list(reps.keys())[0]: ^14} {list(reps.keys())[1]: ^14} {list(reps.keys())[2]: ^14} unit')
+                strs = ['delta   ','epsilon ','gamma   ','beta    ']
+                strs += strs
+                for rep,ax in reps.items():
+                    rho_rep = rho[ax] #rho[0] = rho_a, 1=b, 2=c
+                    lambda_rep = cpax[:,2][ax] #cpax[0,2] = lambda_a, 1,2 = b, 2,2 = c
+
+                    delta = np.arccos(lambda_rep[2])
+                    epsilon = np.arccos(lambda_rep[0]*np.sign(lambda_rep[1])/np.sqrt(lambda_rep[0]**2+lambda_rep[1]**2))
+                    gamma = np.arccos(rho_rep[2]/la.norm(rho_rep,2))
+                    beta = np.arccos(rho_rep[0]*np.sign(rho_rep[1])/np.sqrt(rho_rep[0]**2+rho_rep[1]**2))
+                    vals = [delta,epsilon,gamma,beta]
+                    for i,v in enumerate(vals):
+                        strs[i] += f'{v: >14.7f} '
+                        strs[4+i] += f'{v*180/np.pi: >14.5f} '
+                for s in strs[0:4]:
+                    s +='rad'
+                    print(s)
+                print('------------------------')
+                for s in strs[4:8]:
+                    s +='deg'
+                    print(s)
+                print('')
+
+
+
         if not noplots:
             mins = [mina,minb,minc]
             if not plot3d:
@@ -515,9 +549,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
                     ax.plot([xmin,xmax],[mm*xmin,mm*xmax],color='red',label=r'$\rho$',zorder=mins[i3]+99.9)
                     mx0 = ch_com[i1]
                     my0 = ch_com[i2]
-                    mslope = (cpax[i2,i3]/cpax[i1,i3])
-                    if i3 == 1:
-                        mslope = mslope**-1
+                    mslope = (cpax[i2,2]/cpax[i1,2])
                     ax.plot([xmin,xmax],[mslope*(xmin-mx0)+my0,mslope*(xmax-mx0)+my0],color='blue',zorder=mins[i3]+99.9,label='Rotor axis')
                     ax.set_xlim(xmin,xmax)
                     ax.set_ylim(ymin,ymax)
@@ -525,25 +557,30 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
             else:
                 for j,ax in enumerate(axes):
                     sf = max(xmax,max(ymax,zmax))
-                    mcom = np.roll(ch_com,0)
-                    mpax = np.roll(cpax,0,axis=1)
-                    rho_roll = np.roll(rho_norm,0)
-                    xx = np.linspace(-10*sf*rho_roll[0],10*sf*rho_roll[0],100)
-                    yy = np.linspace(-10*sf*rho_roll[1],10*sf*rho_roll[1],100)
-                    zz = np.linspace(-10*sf*rho_roll[2],10*sf*rho_roll[2],100)
+                    rotation = R.from_rotvec([90,0,0],degrees=True)
+                    if j==1:
+                        rotation = R.from_rotvec([0,0,0],degrees=True)
+                    elif j == 2:
+                        rotation = R.from_rotvec([0,0,-90],degrees=True)
+                    rho_r = rotation.apply(rho_norm)
+                    rotor_r = rotation.apply(cpax[:,2])
+                    rotor_com = rotation.apply(ch_com)
+                    xx = np.linspace(-10*sf*rho_r[0],10*sf*rho_r[0],100)
+                    yy = np.linspace(-10*sf*rho_r[1],10*sf*rho_r[1],100)
+                    zz = np.linspace(-10*sf*rho_r[2],10*sf*rho_r[2],100)
                     ax.plot(xx,yy,zz,color='red',zorder=-1000,label=r'$\rho$')
-                    xx = np.linspace(-10*sf*cpax[0,2]+mcom[0],10*sf*cpax[0,2]+mcom[0],100)
-                    yy = np.linspace(-10*sf*cpax[1,2]+mcom[1],10*sf*cpax[1,2]+mcom[1],100)
-                    zz = np.linspace(-10*sf*cpax[2,2]+mcom[2],10*sf*cpax[2,2]+mcom[2],100)
+                    xx = np.linspace(-10*sf*rotor_r[0]+rotor_com[0],10*sf*rotor_r[0]+rotor_com[0],100)
+                    yy = np.linspace(-10*sf*rotor_r[1]+rotor_com[1],10*sf*rotor_r[1]+rotor_com[1],100)
+                    zz = np.linspace(-10*sf*rotor_r[2]+rotor_com[2],10*sf*rotor_r[2]+rotor_com[2],100)
                     ax.plot(xx,yy,zz,color='blue',zorder=-1000,label=r'Rotor axis')
-                    
+
                     ax.legend(frameon=False)
-                    
-                
-    
+
+
+
     for i,x in enumerate(a):
         df.loc[len(df)] = [f'{x.symbol}{i}',x.mass,'amu',f'{pcoords[i,0]:.8f},{pcoords[i,1]:.8f},{pcoords[i,2]:.8f}']
-        
+
     df.loc[len(df)] = ['f_a',abundance,'','Fractional abundance of this isotopologue']
     
     if outfile is None:
@@ -561,6 +598,8 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         return df,[fig0,fig1,fig2],[ax0,ax1,ax2]
     else:
         return df,[],[]
+        
+    
     
     
 elements = {'H': {'default': 1,
@@ -4485,7 +4524,7 @@ if __name__ == '__main__':
     opt_group = parser.add_argument_group('Input/output options')
     opt_group.add_argument('-b','--bohr',dest='bohr',action='store_true',help='Atomic coordinates in the input file are in Bohr')
     opt_group.add_argument('-q','--quiet',dest='quiet',action='store_true',help='Do not print text; only write output files')
-    opt_group.add_argument('-3d','--3d-plots',dest='plot3d',action='store_true',help='Generate 3D plots instead of 2D')
+    opt_group.add_argument('-3d','--3d-plots',dest='plot3d',action='store_true',help='Generate 3D plots instead of 2D. WARNING: 3D plotting is very slow!')
     opt_group.add_argument('-s','--no-plots',dest='noplots',action='store_true',help='Do not generate atomic coordinate plots')
     opt_group.add_argument('-d','--no-csv',dest='nocsv',action='store_true',help='Do not generate output csv file')
     opt_group.add_argument('-n','--name',dest='molname',help='Molecule name (optional, if omitted it is read from line 2 of the input file or the input filename)')

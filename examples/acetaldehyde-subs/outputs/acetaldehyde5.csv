@@ -12,51 +12,87 @@ Pcc,1.558871423059827,amu A^2,PAM Second Moment
 Delta,-3.1177428461196524,amu A^2,PAM Intertial Defect
 Rotor,[1 4 5 6],index,Atoms in rotor
 A (rotor),267664.4874165013,MHz,Rotational Constant of Rotor Atoms
-B (rotor),257627.48975806867,MHz,Rotational Constant of Rotor Atoms
-C (rotor),158361.37534467605,MHz,Rotational Constant of Rotor Atoms
+B (rotor),257627.4897580687,MHz,Rotational Constant of Rotor Atoms
+C (rotor),158361.37534467605,MHz,Rotational Constant of Rotor Atoms (F0)
 A (rotor),8.92832625617624,cm-1,Rotational Constant of Rotor Atoms
 B (rotor),8.593528051932136,cm-1,Rotational Constant of Rotor Atoms
-C (rotor),5.282366888118181,cm-1,Rotational Constant of Rotor Atoms
+C (rotor),5.282366888118181,cm-1,Rotational Constant of Rotor Atoms (F0)
 I_alpha,3.1913022227893055,amu A^2,Rotor Moment of Inertia
-lambda_a,-0.9230579392913403,,Direction Cosine of Rotor
-lambda_b,0.38466094253410255,,Direction Cosine of Rotor
-lambda_c,6.474841181365494e-10,,Direction Cosine of Rotor
-rho_a,-0.26335878176750904,,Component of rho Axis
-rho_b,0.024582129444384822,,Component of rho Axis
-rho_c,3.562305400180404e-11,,Component of rho Axis
-r,0.7474488005258328,,r Parameter for F Calculation
-rho_Ra,0.0,rad,Rotation Angle for PAM-RAM Transformation
-rho_Rb,-1.3467892484646004e-10,rad,Rotation Angle for PAM-RAM Transformation
-rho_Rc,0.09293685947977941,rad,Rotation Angle for PAM-RAM Transformation
-rho_Ra,0.0,deg,Rotation Angle for PAM-RAM Transformation
-rho_Rb,-7.716533983061759e-09,deg,Rotation Angle for PAM-RAM Transformation
-rho_Rc,5.324889809391755,deg,Rotation Angle for PAM-RAM Transformation
-theta_a,0.38466094253410255,rad,Total Rotaton Angle between Rotor and Principal Axis
-theta_b,0.9230579392913403,rad,Total Rotaton Angle between Rotor and Principal Axis
-theta_c,0.9999999999999999,rad,Total Rotaton Angle between Rotor and Principal Axis
-theta_a,22.039448550728373,deg,Total Rotaton Angle between Rotor and Principal Axis
-theta_b,52.887324167436766,deg,Total Rotaton Angle between Rotor and Principal Axis
-theta_c,57.295779513082316,deg,Total Rotaton Angle between Rotor and Principal Axis
-rho,0.26450355200277925,,Magnitude of rho Vector
-F,211869.19456325073,MHz,Torsion-Rotational Constant
-A_ram,44987.29121353892,MHz,RAM Rotational Constant
-B_ram,10076.562695504488,MHz,RAM Rotational Constant
-C_ram,8712.67057783438,MHz,RAM Rotational Constant
-D_ab,4193.056692384187,MHz,RAM Off-Diagonal Rotational Constant
-D_bc,-6.329008764950455e-08,MHz,RAM Off-Diagonal Rotational Constant
-D_ac,6.076344416107837e-06,MHz,RAM Off-Diagonal Rotational Constant
-F,7.067195618485196,cm-1,Torsion-Rotational Constant
-A_ram,1.5006145089059886,cm-1,RAM Rotational Constant
-B_ram,0.33611795182334064,cm-1,RAM Rotational Constant
-C_ram,0.29062340780548857,cm-1,RAM Rotational Constant
-D_ab,0.13986531617096876,cm-1,RAM Off-Diagonal Rotational Constant
-D_bc,-2.1111300821818722e-12,cm-1,RAM Off-Diagonal Rotational Constant
-D_ac,2.0268503272713542e-10,cm-1,RAM Off-Diagonal Rotational Constant
-C0,12.0,amu,"-0.12405529,0.38631949,-0.00000044"
-C1,12.0,amu,"1.26623524,-0.19187659,-0.00000054"
-O2,15.99491461926,amu,"-1.13991065,-0.27401744,0.00000049"
-H3,2.014101777844,amu,"-0.17570811,1.49271386,-0.00000230"
-H4,1.007825031898,amu,"1.22445039,-1.27954848,-0.00017669"
-H5,1.007825031898,amu,"1.80902357,0.16489532,0.87951504"
-H6,1.007825031898,amu,"1.80914061,0.16517597,-0.87932996"
+lambda_a,-0.937190425291902,,Direction Cosine of Rotor
+lambda_b,-0.34881815712656433,,Direction Cosine of Rotor
+lambda_c,1.0494672528880454e-07,,Direction Cosine of Rotor
+rho_a,-0.2673909385130669,,Component of rho Axis
+rho_b,-0.02229156158810371,,Component of rho Axis
+rho_c,5.773922104892698e-09,,Component of rho Axis
+r,0.7416280711831017,,r Parameter for F Calculation
+rho,0.26831851914643345,,Magnitude of rho Vector
+F,213532.06748504803,MHz,RAM Torsion-Rotational Constant
+A_ram,45026.080618013286,MHz,RAM Rotational Constant
+B_ram,10085.251012927092,MHz,RAM Rotational Constant
+C_ram,8712.670577833214,MHz,RAM Rotational Constant
+D_ab,-2912.909687263481,MHz,RAM Off-Diagonal Rotational Constant
+D_bc,0.009739271288809446,MHz,RAM Off-Diagonal Rotational Constant
+D_ac,0.000784786169549281,MHz,RAM Off-Diagonal Rotational Constant
+F,7.122663088644079,cm-1,RAM Torsion-Rotational Constant
+A_ram,1.5019083841666652,cm-1,RAM Rotational Constant
+B_ram,0.3364077628973272,cm-1,RAM Rotational Constant
+C_ram,0.29062340780544965,cm-1,RAM Rotational Constant
+D_ab,-0.0971642084225975,cm-1,RAM Off-Diagonal Rotational Constant
+D_bc,3.2486712153410627e-07,cm-1,RAM Off-Diagonal Rotational Constant
+D_ac,2.6177648856972943e-08,cm-1,RAM Off-Diagonal Rotational Constant
+dIr,2.7852828951718367,rad,CAM delta angle (Ir representation)
+eIr,3.141592352970176,rad,CAM epsilon angle (Ir representation)
+gIr,3.058418057072065,rad,CAM gamma angle (Ir representation)
+bIr,3.141592395064309,rad,CAM beta angle (Ir representation)
+dIr,159.58495464332515,deg,CAM delta angle (Ir representation)
+eIr,179.9999827757647,deg,CAM epsilon angle (Ir representation)
+gIr,175.23444665683067,deg,CAM gamma angle (Ir representation)
+bIr,179.99998518758088,deg,CAM beta angle (Ir representation)
+dIIr,1.9271060852128359,rad,CAM delta angle (IIr representation)
+eIIr,1.5707964387750475,rad,CAM epsilon angle (IIr representation)
+gIIr,1.6539709233126219,rad,CAM gamma angle (IIr representation)
+bIIr,1.570796348388456,rad,CAM beta angle (IIr representation)
+dIIr,110.41504535667387,deg,CAM delta angle (IIr representation)
+eIIr,90.00000641599004,deg,CAM epsilon angle (IIr representation)
+gIIr,94.76555334316916,deg,CAM gamma angle (IIr representation)
+bIIr,90.0000012372198,deg,CAM beta angle (IIr representation)
+dIIIr,1.5707962218481712,rad,CAM delta angle (IIIr representation)
+eIIIr,0.35630975841794144,rad,CAM epsilon angle (IIIr representation)
+gIIIr,1.5707963052759866,rad,CAM gamma angle (IIIr representation)
+bIIIr,0.08317459651772546,rad,CAM beta angle (IIIr representation)
+dIIIr,89.99999398699556,deg,CAM delta angle (IIIr representation)
+eIIIr,20.415045356674,deg,CAM epsilon angle (IIIr representation)
+gIIIr,89.99999876705728,deg,CAM gamma angle (IIIr representation)
+bIIIr,4.7655533431691826,deg,CAM beta angle (IIIr representation)
+dIl,2.7852828951718367,rad,CAM delta angle (Il representation)
+eIl,1.5707966276586078,rad,CAM epsilon angle (Il representation)
+gIl,3.058418057072065,rad,CAM gamma angle (Il representation)
+bIl,1.570796585813184,rad,CAM beta angle (Il representation)
+dIl,159.58495464332515,deg,CAM delta angle (Il representation)
+eIl,90.00001723822086,deg,CAM epsilon angle (Il representation)
+gIl,175.23444665683067,deg,CAM gamma angle (Il representation)
+bIl,90.00001484065469,deg,CAM beta angle (Il representation)
+dIIl,1.9271060852128359,rad,CAM delta angle (IIl representation)
+eIIl,3.1415925410884933,rad,CAM epsilon angle (IIl representation)
+gIIl,1.6539709233126219,rad,CAM gamma angle (IIl representation)
+bIIl,3.1415926325163688,rad,CAM beta angle (IIl representation)
+dIIl,110.41504535667387,deg,CAM delta angle (IIl representation)
+eIIl,179.99999355415034,deg,CAM epsilon angle (IIl representation)
+gIIl,94.76555334316916,deg,CAM gamma angle (IIl representation)
+bIIl,179.99999879258175,deg,CAM beta angle (IIl representation)
+dIIIl,1.5707962218481712,rad,CAM delta angle (IIIl representation)
+eIIIl,1.2144865683769552,rad,CAM epsilon angle (IIIl representation)
+gIIIl,1.5707963052759866,rad,CAM gamma angle (IIIl representation)
+bIIIl,1.4876217302771713,rad,CAM beta angle (IIIl representation)
+dIIIl,89.99999398699556,deg,CAM delta angle (IIIl representation)
+eIIIl,69.584954643326,deg,CAM epsilon angle (IIIl representation)
+gIIIl,89.99999876705728,deg,CAM gamma angle (IIIl representation)
+bIIIl,85.23444665683083,deg,CAM beta angle (IIIl representation)
+C0,12.0,amu,"0.13884470,0.38125400,-0.00000115"
+C1,12.0,amu,"-1.27268673,-0.14295730,-0.00000109"
+O2,15.99491461926,amu,"1.12850911,-0.31772477,0.00000193"
+H3,2.014101777844,amu,"0.23307880,1.48483746,-0.00000528"
+H4,1.007825031898,amu,"-1.27283131,-1.23143150,-0.00017494"
+H5,1.007825031898,amu,"-1.80132952,0.23446052,0.87951333"
+H6,1.007825031898,amu,"-1.80143447,0.23474175,-0.87933167"
 f_a,0.00014153578650376956,,Fractional abundance of this isotopologue
