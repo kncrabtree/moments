@@ -4,9 +4,10 @@ Supports nonstandard isotopologues and will calculate internal rotation paramete
 
 [![DOI](https://zenodo.org/badge/674807150.svg)](https://zenodo.org/badge/latestdoi/674807150)
 
-![ac-ala-ome-r0123-ab](https://github.com/kncrabtree/moments/assets/20146313/338e14c3-1f8c-48c7-9d61-010cb9c6c4ed)
-
-![ac-ala-ome-r0123-ab](https://github.com/kncrabtree/moments/assets/20146313/5d88d623-0ea2-421c-b832-9814f4e91a83)
+<p align="center">
+  <img src="https://github.com/kncrabtree/moments/assets/20146313/338e14c3-1f8c-48c7-9d61-010cb9c6c4ed" width=400 align="center"/>
+  <img src="https://github.com/kncrabtree/moments/assets/20146313/5d88d623-0ea2-421c-b832-9814f4e91a83" width=400 align="center"/>
+</p>
 
 ### Installation and Requirements
 
@@ -204,23 +205,12 @@ H	-1.7052250	0.2181590	-0.8793310
 ```
 The first line is ignored. The second line may optionally contain the molecule's name, and the remaining lines contain the atoms and their coordinates. By default, the program assumes the coordinates are in units of Angstrom, but this can be modified by passing the `-b` or `--bohr` flag. Any whitespace characters may be used to separate the columns. Atom labels are case-sensitive. The script will remove any dummy atoms (indicated by `x` or `X`), but any ghost atoms will need to be removed manually.
 
-By default, the program will use the mass corresponding to the most abundant isotopologue for the indicated atom. To use a different mass for an atom, there are two options. You may append the atomic mass number (as an integer) to the end of the respective line in the input file, or you may pass the desired mass numbers for particular atoms using the `-i`/`--isotopes` flag. Atoms are specified by their index, starting from 0, followed by a dash and finally the mass number. For example, to change the first carbon atom (0) to $^{13}\text{C}$, the oxygen (2) to $^{18}\text{O}$, and the last three hydrogens (4, 5, and 6) to D, call the script with
+By default, the program will use the mass corresponding to the most abundant isotopologue for the indicated atom. To perform computations for other isotopologues, pass the desired mass numbers for particular atoms using the `-i`/`--isotopes` flag. Atoms are specified by their index, starting from 0, followed by a dash and finally the mass number. For example, to change the first carbon atom (0) to $^{13}\text{C}$, the oxygen (2) to $^{18}\text{O}$, and the last three hydrogens (4, 5, and 6) to D, call the script with
 ```moments.py examples/acetaldehyde/acetaldehyde.xyz -i 0-13,2-18,4-2,5-2,6-2```
-or edit the input file as follows:
-```
-7
+Several batch modes are available for performing sets of substitutions at once; these are described in the help documentation above, and examples can be found in the [examples/acetaldehyde-subs](https://github.com/kncrabtree/moments/tree/main/examples/acetaldehyde-subs) and [examples/ocs](https://github.com/kncrabtree/moments/tree/main/examples/ocs) folders.
 
-C	0.2318720	0.4020210	-0.0000010 13
-C	-1.1692990	-0.1492850	-0.0000010
-O	1.2348180	-0.2777630	0.0000010 18
-H	0.3048290	1.5072150	-0.0000040
-H	-1.1484750	-1.2375600	-0.0001760 2
-H	-1.7051140	0.2178780	0.8795140 2
-H	-1.7052250	0.2181590	-0.8793310 2
-```
-
-If the molecule contains an internal rotor, the program can be used to additional compute internal rotation parameters relevant for the RAM Hamiltonian (e.g., $\rho$, $F$, $D_{ab}$, etc). To do so, use the `-r`/`--rotor` flag and pass the indices of the rotor in a comma-delimited list. For example,
+If the molecule contains an internal rotor, the program can be used to additional compute internal rotation parameters relevant for the RAM Hamiltonian (e.g., $\rho$, $F$, $D_{ab}$, etc) as used in [BELGI](http://info.ifpan.edu.pl/~kisiel/introt/introt.htm#belgi), [RAM36](http://info.ifpan.edu.pl/~kisiel/introt/introt.htm#ram36), and their variants, as well as the CAM Hamiltonian ($\epsilon$, $\delta$, etc) as used in [XIAM](http://info.ifpan.edu.pl/~kisiel/introt/introt.htm#xiam). To do so, use the `-r`/`--rotor` flag and pass the indices of the rotor in a comma-delimited list. For example,
 ```moments.py examples/acetaldehyde/acetaldehyde.xyz -r 1,4,5,6```
-The list must contain exactly 4 atoms, and the atom numbering starts at 0.
+Note that the atom numbering starts at 0. For molecules which possess multiple rotors, the script can be run separately for each rotor. See [examples/ac-ala-ome](https://github.com/kncrabtree/moments/tree/main/examples/ac-ala-ome).
 
-For additional use cases, see the examples folder.
+For additional use cases, see the [examples](https://github.com/kncrabtree/moments/tree/main/examples) folder.
