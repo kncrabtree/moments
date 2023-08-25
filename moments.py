@@ -320,10 +320,10 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
                     x = atom.vdw/6*np.outer(np.cos(u),np.sin(v))+xx
                     y = atom.vdw/6*np.outer(np.sin(u),np.sin(v))+yy
                     z = atom.vdw/6*np.outer(np.ones(np.size(u)),np.cos(v))+zz
-                    ax.plot_surface(x,y,z,color=atom.color,zorder=yy*((-1)**j))
+                    ax.plot_surface(x,y,z,color=atom.color,zorder=-yy)
                     ax.text(xx,
                             yy,
-                            zz,f'{atom.label}{i}',ha='center',va='center',zorder=yy*((-1)**j)+atom.vdw/6+0.01,fontsize=min(a_text,min(b_text,c_text)))
+                            zz,f'{atom.label}{i}',ha='center',va='center',zorder=-yy+atom.vdw/6+0.01,fontsize=min(a_text,min(b_text,c_text)))
                 for i in range(len(a)):
                     for k in range(i+1,len(a)):
                         if bond_matrix[i,k]:
@@ -344,19 +344,19 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
                             x = xyz[0,:].reshape(100,100) + xx1
                             y = xyz[1,:].reshape(100,100) + yy1
                             z = xyz[2,:].reshape(100,100) + zz1
-                            if yy1*((-1)**j) <= yy2*((-1)**j):
-                                zorder = yy1 - a[i].vdw/6*((-1)**j) - .05*((-1)**j)
+                            if yy1 >= yy2:
+                                zorder = yy1 + a[i].vdw/6 + .05
                             else:
-                                zorder = yy2 - a[k].vdw/6*((-1)**j) - 0.05*((-1)**j)
-                            ax.plot_surface(x,y,z,color='#dddddd',zorder=zorder*((-1)**j))
+                                zorder = yy2 + a[k].vdw/6 + 0.05
+                            ax.plot_surface(x,y,z,color='#dddddd',zorder=-zorder)
                 ax.set_aspect('equal')
                 ax.set_axis_off()
                 xmin,xmax = ax.get_xlim()
                 ymin,ymax = ax.get_ylim()
                 zmin,zmax = ax.get_zlim()
-                ax.plot(np.linspace(xmin,xmax,50),np.zeros(50),np.zeros(50),color='#00000088',zorder=-0,lw=0.5)
-                ax.plot(np.zeros(50),np.linspace(ymin,ymax,50),np.zeros(50),color='#00000088',zorder=-0,lw=0.5)
-                ax.plot(np.zeros(50),np.zeros(50),np.linspace(zmin,zmax,50),color='#00000088',zorder=-0,lw=0.5)
+                ax.plot(np.linspace(xmin,xmax,50),np.zeros(50),np.zeros(50),color='#00000088',zorder=-1000,lw=0.5)
+                ax.plot(np.zeros(50),np.linspace(ymin,ymax,50),np.zeros(50),color='#00000088',zorder=-1000,lw=0.5)
+                ax.plot(np.zeros(50),np.zeros(50),np.linspace(zmin,zmax,50),color='#00000088',zorder=-1000,lw=0.5)
                 
                 if(j==0):
                     ax.text(xmax,.02*ymax,0.02*zmax,'a')
@@ -368,7 +368,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
                     ax.text(.02*xmax,.02*ymax,zmax,'c')
                 elif(j==2):
                     ax.text(xmax,.02*ymax,0.02*zmax,'b')
-                    ax.text(.02*xmax,ymax,0.02*zmax,'a')
+                    ax.text(.02*xmax,-ymax,0.02*zmax,'a')
                     ax.text(.02*xmax,.02*ymax,zmax,'c')
 
                 ax.set_xlim(xmin/1.25,xmax/1.25)

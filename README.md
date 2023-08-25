@@ -6,7 +6,7 @@ Supports nonstandard isotopologues and will calculate internal rotation paramete
 
 <p align="center">
   <img src="https://github.com/kncrabtree/moments/assets/20146313/338e14c3-1f8c-48c7-9d61-010cb9c6c4ed" width=400 align="center"/>
-  <img src="https://github.com/kncrabtree/moments/assets/20146313/5d88d623-0ea2-421c-b832-9814f4e91a83" width=400 align="center"/>
+  <img src="https://github.com/kncrabtree/moments/assets/20146313/01777d01-63fa-4aaf-95ef-6b2ffb5ee255" width=400 align="center"/>
 </p>
 
 ### Installation and Requirements
