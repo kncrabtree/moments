@@ -5,8 +5,8 @@ Supports nonstandard isotopologues and will calculate internal rotation paramete
 [![DOI](https://zenodo.org/badge/674807150.svg)](https://zenodo.org/badge/latestdoi/674807150)
 
 <p align="center">
-  <img src="https://github.com/kncrabtree/moments/assets/20146313/338e14c3-1f8c-48c7-9d61-010cb9c6c4ed" width=400 align="center"/>
-  <img src="https://github.com/kncrabtree/moments/assets/20146313/01777d01-63fa-4aaf-95ef-6b2ffb5ee255" width=400 align="center"/>
+  <img src="https://github.com/kncrabtree/moments/assets/20146313/8bf65ebd-7a60-4003-afd7-ae760d98e372" width=400 align="center"/>
+  <img src="https://github.com/kncrabtree/moments/assets/20146313/c1c41434-18c4-4f5a-abb6-becde3c578d6" width=400 align="center"/>
 </p>
 
 ### Installation and Requirements

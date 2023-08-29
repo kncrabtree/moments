@@ -176,7 +176,23 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
     pi.append(np.sum(m*(pcoords[:,2]**2 + pcoords[:,0]**2)))
     pi.append(np.sum(m*(pcoords[:,0]**2 + pcoords[:,1]**2)))
     pcoords = pcoords[:,np.argsort(pi)]
-
+    
+    #convention: first atom defines positive a and b directions
+    if pcoords[0][0] < 0 and pcoords[0][1] < 0:
+        pcoords[:,0] *= -1
+        pcoords[:,1] *= -1
+        pax[:,0] *= -1
+        pax[:,1] *= -1
+    elif pcoords[0][0] < 0:
+        pcoords[:,0] *= -1
+        pcoords[:,2] *= -1
+        pax[:,0] *= -1
+        pax[:,2] *= -1
+    elif pcoords[0][1] < 0:
+        pcoords[:,1] *= -1
+        pcoords[:,2] *= -1
+        pax[:,1] *= -1
+        pax[:,2] *= -1
 
     distance_matrix = distance(pcoords[None,:,:],pcoords[:,None,:])
     vdw = np.asarray([x.vdw for x in a])
@@ -273,7 +289,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
                         bb2 = pcoords[j,1]
                         cc2 = pcoords[j,2]
                         ax0.plot([aa1,aa2],[bb1,bb2],color='black',zorder=min(cc1,cc2)+minc+99.9)
-                        ax1.plot([aa1,aa2],[cc1,cc2],color='black',zorder=min(bb1,bb2)+minb+99.9)
+                        ax1.plot([aa1,aa2],[cc1,cc2],color='black',zorder=-(max(bb1,bb2)+minb)+99.9)
                         ax2.plot([bb1,bb2],[cc1,cc2],color='black',zorder=min(aa1,aa2)+mina+99.9)
 
             ax0.set_xlabel('a (A)',loc='right')
@@ -394,8 +410,10 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         crc, cmoi, cpax = abc(chc,chm)
         i_alpha = cmoi[2] #methyl MOI
 
-        #convention: cpax[0,2] has same sign as ch_com[0]
-        if cpax[0,2]*ch_com[0] < 0:
+        dd = (pcoords[rotor_atoms[0]]-ch_com)*cpax[:,2]
+        dd = np.where(np.abs(dd)<1e-10,np.zeros_like(dd),dd)
+        #convention: cpax[0,2] points from the rotor COM to the first rotor atom
+        if np.any(dd < 0):
             cpax *= -1
 
         rho = cpax[:,2]*i_alpha/pmoi
@@ -444,20 +462,24 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         for rep,ax in reps.items():
             rho_rep = rho[ax] #rho[0] = rho_a, 1=b, 2=c
             lambda_rep = cpax[:,2][ax] #cpax[0,2] = lambda_a, 1,2 = b, 2,2 = c
+            s = np.sign(rho_rep[1])
+            if s==0:
+                s=1
 
             delta = np.arccos(lambda_rep[2])
-            epsilon = np.arccos(lambda_rep[0]*np.sign(lambda_rep[1])/np.sqrt(lambda_rep[0]**2+lambda_rep[1]**2))
-            gamma = np.arccos(rho_rep[2]/la.norm(rho_rep,2))
-            beta = np.arccos(rho_rep[0]*np.sign(rho_rep[1])/np.sqrt(rho_rep[0]**2+rho_rep[1]**2))
+            epsilon = np.arccos(lambda_rep[0]*s/np.sqrt(lambda_rep[0]**2+lambda_rep[1]**2))
+            beta = np.arccos(rho_rep[2]/la.norm(rho_rep,2))
+
+            gamma = np.arccos(rho_rep[0]*s/np.sqrt(rho_rep[0]**2+rho_rep[1]**2))
 
             df.loc[len(df)] = [f'd{rep}',delta,'rad',f'CAM delta angle ({rep} representation)']
             df.loc[len(df)] = [f'e{rep}',epsilon,'rad',f'CAM epsilon angle ({rep} representation)']
-            df.loc[len(df)] = [f'g{rep}',gamma,'rad',f'CAM gamma angle ({rep} representation)']
             df.loc[len(df)] = [f'b{rep}',beta,'rad',f'CAM beta angle ({rep} representation)']
+            df.loc[len(df)] = [f'g{rep}',gamma,'rad',f'CAM gamma angle ({rep} representation)']
             df.loc[len(df)] = [f'd{rep}',delta*180/np.pi,'deg',f'CAM delta angle ({rep} representation)']
             df.loc[len(df)] = [f'e{rep}',epsilon*180/np.pi,'deg',f'CAM epsilon angle ({rep} representation)']
-            df.loc[len(df)] = [f'g{rep}',gamma*180/np.pi,'deg',f'CAM gamma angle ({rep} representation)']
             df.loc[len(df)] = [f'b{rep}',beta*180/np.pi,'deg',f'CAM beta angle ({rep} representation)']
+            df.loc[len(df)] = [f'g{rep}',gamma*180/np.pi,'deg',f'CAM gamma angle ({rep} representation)']
 
         if not quiet:
             print('\nRotor Rotational Constants')
@@ -514,17 +536,20 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
             re_reps = [{ 'Ir' : [1,2,0], 'IIr' : [2,0,1], 'IIIr' : [0,1,2]},{'Il' : [2,1,0], 'IIl' : [0,2,1], 'IIIl' : [1,0,2] }]
             for reps in re_reps:
                 print(f'        {list(reps.keys())[0]: ^14} {list(reps.keys())[1]: ^14} {list(reps.keys())[2]: ^14} unit')
-                strs = ['delta   ','epsilon ','gamma   ','beta    ']
+                strs = ['delta   ','epsilon ','beta    ','gamma   ']
                 strs += strs
                 for rep,ax in reps.items():
                     rho_rep = rho[ax] #rho[0] = rho_a, 1=b, 2=c
                     lambda_rep = cpax[:,2][ax] #cpax[0,2] = lambda_a, 1,2 = b, 2,2 = c
+                    s = np.sign(rho_rep[1])
+                    if s==0:
+                        s=1
 
                     delta = np.arccos(lambda_rep[2])
-                    epsilon = np.arccos(lambda_rep[0]*np.sign(lambda_rep[1])/np.sqrt(lambda_rep[0]**2+lambda_rep[1]**2))
-                    gamma = np.arccos(rho_rep[2]/la.norm(rho_rep,2))
-                    beta = np.arccos(rho_rep[0]*np.sign(rho_rep[1])/np.sqrt(rho_rep[0]**2+rho_rep[1]**2))
-                    vals = [delta,epsilon,gamma,beta]
+                    epsilon = np.arccos(lambda_rep[0]*s/np.sqrt(lambda_rep[0]**2+lambda_rep[1]**2))
+                    beta = np.arccos(rho_rep[2]/la.norm(rho_rep,2))
+                    gamma = np.arccos(rho_rep[0]*s/np.sqrt(rho_rep[0]**2+rho_rep[1]**2))
+                    vals = [delta,epsilon,beta,gamma]
                     for i,v in enumerate(vals):
                         strs[i] += f'{v: >14.7f} '
                         strs[4+i] += f'{v*180/np.pi: >14.5f} '
