@@ -1,4 +1,4 @@
-Command: moments.py ocs.xyz -t 1e-8 > ocs-thresholdsubs-output.txt
+Command: moments.py ocs.xyz -t 1e-8 > ocs-output.txt
 
 1:  Parent
 2:  C0-13

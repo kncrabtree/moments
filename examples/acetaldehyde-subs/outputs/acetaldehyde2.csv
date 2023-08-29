@@ -18,76 +18,76 @@ A (rotor),8.928326256176248,cm-1,Rotational Constant of Rotor Atoms
 B (rotor),8.593528051932138,cm-1,Rotational Constant of Rotor Atoms
 C (rotor),5.282366888118183,cm-1,Rotational Constant of Rotor Atoms (F0)
 I_alpha,3.1913022227893046,amu A^2,Rotor Moment of Inertia
-lambda_a,-0.9390309587707641,,Direction Cosine of Rotor
-lambda_b,-0.3438326023954784,,Direction Cosine of Rotor
-lambda_c,-1.1325715304530318e-07,,Direction Cosine of Rotor
-rho_a,-0.3306131343199978,,Component of rho Axis
-rho_b,-0.0219793512505918,,Component of rho Axis
-rho_c,-6.469338893178607e-09,,Component of rho Axis
+lambda_a,0.9390309587707641,,Direction Cosine of Rotor
+lambda_b,0.3438326023954784,,Direction Cosine of Rotor
+lambda_c,1.1325715304530318e-07,,Direction Cosine of Rotor
+rho_a,0.3306131343199978,,Component of rho Axis
+rho_b,0.0219793512505918,,Component of rho Axis
+rho_c,6.469338893178607e-09,,Component of rho Axis
 r,0.681986813957829,,r Parameter for F Calculation
 rho,0.3313429288007967,,Magnitude of rho Vector
 F,232205.9196799492,MHz,RAM Torsion-Rotational Constant
-A_ram,55632.919726508015,MHz,RAM Rotational Constant
-B_ram,10100.886152120724,MHz,RAM Rotational Constant
-C_ram,9045.728037014944,MHz,RAM Rotational Constant
-D_ab,-3026.9957699760544,MHz,RAM Off-Diagonal Rotational Constant
-D_bc,-0.011271816964220745,MHz,RAM Off-Diagonal Rotational Constant
-D_ac,-0.0009119940858973528,MHz,RAM Off-Diagonal Rotational Constant
+A_ram,55632.91972650803,MHz,RAM Rotational Constant
+B_ram,10100.886152122479,MHz,RAM Rotational Constant
+C_ram,9045.72803701651,MHz,RAM Rotational Constant
+D_ab,3026.9957699760557,MHz,RAM Off-Diagonal Rotational Constant
+D_bc,-1.2426972524855865e-05,MHz,RAM Off-Diagonal Rotational Constant
+D_ac,0.0009119940858973531,MHz,RAM Off-Diagonal Rotational Constant
 F,7.745555749769703,cm-1,RAM Torsion-Rotational Constant
-A_ram,1.855714453180407,cm-1,RAM Rotational Constant
-B_ram,0.33692929500316926,cm-1,RAM Rotational Constant
-C_ram,0.30173300880754456,cm-1,RAM Rotational Constant
-D_ab,-0.10096971051806962,cm-1,RAM Off-Diagonal Rotational Constant
-D_bc,-3.759873426909474e-07,cm-1,RAM Off-Diagonal Rotational Constant
-D_ac,-3.042084820884162e-08,cm-1,RAM Off-Diagonal Rotational Constant
-dIr,2.7905973458431155,rad,CAM delta angle (Ir representation)
+A_ram,1.8557144531804075,cm-1,RAM Rotational Constant
+B_ram,0.3369292950032278,cm-1,RAM Rotational Constant
+C_ram,0.3017330088075968,cm-1,RAM Rotational Constant
+D_ab,0.10096971051806966,cm-1,RAM Off-Diagonal Rotational Constant
+D_bc,-4.1451918463058416e-10,cm-1,RAM Off-Diagonal Rotational Constant
+D_ac,3.0420848208841634e-08,cm-1,RAM Off-Diagonal Rotational Constant
+dIr,0.3509953077466777,rad,CAM delta angle (Ir representation)
 eIr,3.2951450925314547e-07,rad,CAM epsilon angle (Ir representation)
-gIr,3.0752097604172834,rad,CAM gamma angle (Ir representation)
-bIr,2.9427435484724594e-07,rad,CAM beta angle (Ir representation)
-dIr,159.88945023721988,deg,CAM delta angle (Ir representation)
+bIr,0.06638289317250982,rad,CAM beta angle (Ir representation)
+gIr,2.9427435484724594e-07,rad,CAM gamma angle (Ir representation)
+dIr,20.11054976278012,deg,CAM delta angle (Ir representation)
 eIr,1.8879790668529747e-05,deg,CAM epsilon angle (Ir representation)
-gIr,176.19654038934738,deg,CAM gamma angle (Ir representation)
-bIr,1.686067855168235e-05,deg,CAM beta angle (Ir representation)
-dIIr,1.9217916345415553,rad,CAM delta angle (IIr representation)
+bIr,3.8034596106526206,deg,CAM beta angle (Ir representation)
+gIr,1.686067855168235e-05,deg,CAM gamma angle (Ir representation)
+dIIr,1.219801019048238,rad,CAM delta angle (IIr representation)
 eIIr,1.5707962061842267,rad,CAM epsilon angle (IIr representation)
-gIIr,1.6371792199674045,rad,CAM gamma angle (IIr representation)
-bIIr,1.5707963072271958,rad,CAM beta angle (IIr representation)
-dIIr,110.11054976277903,deg,CAM delta angle (IIr representation)
+bIIr,1.5044134336223889,rad,CAM beta angle (IIr representation)
+gIIr,1.5707963072271958,rad,CAM gamma angle (IIr representation)
+dIIr,69.88945023722097,deg,CAM delta angle (IIr representation)
 eIIr,89.99999308951764,deg,CAM epsilon angle (IIr representation)
-gIIr,93.80345961065251,deg,CAM gamma angle (IIr representation)
-bIIr,89.99999887885333,deg,CAM beta angle (IIr representation)
-dIIIr,1.5707964400520498,rad,CAM delta angle (IIIr representation)
+bIIr,86.19654038934749,deg,CAM beta angle (IIr representation)
+gIIr,89.99999887885333,deg,CAM gamma angle (IIr representation)
+dIIIr,1.5707962135377436,rad,CAM delta angle (IIIr representation)
 eIIIr,0.3509953077466606,rad,CAM epsilon angle (IIIr representation)
-gIIIr,1.570796346319499,rad,CAM gamma angle (IIIr representation)
-bIIIr,0.06638289317250816,rad,CAM beta angle (IIIr representation)
-dIIIr,90.00000648915689,deg,CAM delta angle (IIIr representation)
+bIIIr,1.5707963072702944,rad,CAM beta angle (IIIr representation)
+gIIIr,0.06638289317250816,rad,CAM gamma angle (IIIr representation)
+dIIIr,89.99999351084314,deg,CAM delta angle (IIIr representation)
 eIIIr,20.110549762779144,deg,CAM epsilon angle (IIIr representation)
-gIIIr,90.00000111867732,deg,CAM gamma angle (IIIr representation)
-bIIIr,3.8034596106525256,deg,CAM beta angle (IIIr representation)
-dIl,2.7905973458431155,rad,CAM delta angle (Il representation)
+bIIIr,89.9999988813227,deg,CAM beta angle (IIIr representation)
+gIIIr,3.8034596106525256,deg,CAM gamma angle (IIIr representation)
+dIl,0.3509953077466777,rad,CAM delta angle (Il representation)
 eIl,1.5707959973986956,rad,CAM epsilon angle (Il representation)
-gIl,3.0752097604172834,rad,CAM gamma angle (Il representation)
-bIl,1.570796032457779,rad,CAM beta angle (Il representation)
-dIl,159.88945023721988,deg,CAM delta angle (Il representation)
+bIl,0.06638289317250982,rad,CAM beta angle (Il representation)
+gIl,1.570796032457779,rad,CAM gamma angle (Il representation)
+dIl,20.11054976278012,deg,CAM delta angle (Il representation)
 eIl,89.9999811269879,deg,CAM epsilon angle (Il representation)
-gIl,176.19654038934738,deg,CAM gamma angle (Il representation)
-bIl,89.9999831357254,deg,CAM beta angle (Il representation)
-dIIl,1.9217916345415553,rad,CAM delta angle (IIl representation)
+bIl,3.8034596106526206,deg,CAM beta angle (Il representation)
+gIl,89.9999831357254,deg,CAM gamma angle (Il representation)
+dIIl,1.219801019048238,rad,CAM delta angle (IIl representation)
 eIIl,1.2105760581248948e-07,rad,CAM epsilon angle (IIl representation)
-gIIl,1.6371792199674045,rad,CAM gamma angle (IIl representation)
-bIIl,2.1073424255447017e-08,rad,CAM beta angle (IIl representation)
-dIIl,110.11054976277903,deg,CAM delta angle (IIl representation)
+bIIl,1.5044134336223889,rad,CAM beta angle (IIl representation)
+gIIl,2.1073424255447017e-08,rad,CAM gamma angle (IIl representation)
+dIIl,69.88945023722097,deg,CAM delta angle (IIl representation)
 eIIl,6.9360898910140305e-06,deg,CAM epsilon angle (IIl representation)
-gIIl,93.80345961065251,deg,CAM gamma angle (IIl representation)
-bIIl,1.2074182697257333e-06,deg,CAM beta angle (IIl representation)
-dIIIl,1.5707964400520498,rad,CAM delta angle (IIIl representation)
+bIIl,86.19654038934749,deg,CAM beta angle (IIl representation)
+gIIl,1.2074182697257333e-06,deg,CAM gamma angle (IIl representation)
+dIIIl,1.5707962135377436,rad,CAM delta angle (IIIl representation)
 eIIIl,1.2198010190482356,rad,CAM epsilon angle (IIIl representation)
-gIIIl,1.570796346319499,rad,CAM gamma angle (IIIl representation)
-bIIIl,1.5044134336223889,rad,CAM beta angle (IIIl representation)
-dIIIl,90.00000648915689,deg,CAM delta angle (IIIl representation)
+bIIIl,1.5707963072702944,rad,CAM beta angle (IIIl representation)
+gIIIl,1.5044134336223889,rad,CAM gamma angle (IIIl representation)
+dIIIl,89.99999351084314,deg,CAM delta angle (IIIl representation)
 eIIIl,69.88945023722084,deg,CAM epsilon angle (IIIl representation)
-gIIIl,90.00000111867732,deg,CAM gamma angle (IIIl representation)
-bIIIl,86.19654038934749,deg,CAM beta angle (IIIl representation)
+bIIIl,89.9999988813227,deg,CAM beta angle (IIIl representation)
+gIIIl,86.19654038934749,deg,CAM gamma angle (IIIl representation)
 C0,13.00335483534,amu,"0.14311491,0.40518569,-0.00000101"
 C1,12.0,amu,"-1.27118247,-0.11151673,-0.00000128"
 O2,15.99491461926,amu,"1.12905068,-0.29904270,0.00000170"
