@@ -456,10 +456,16 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         df.loc[len(df)] = ['D_ab',(ram_rc[0,1]+ram_rc[1,0])/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
         df.loc[len(df)] = ['D_bc',(ram_rc[1,2]+ram_rc[2,1])/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
         df.loc[len(df)] = ['D_ac',(ram_rc[0,2]+ram_rc[2,0])/29979.2458,'cm-1','RAM Off-Diagonal Rotational Constant']
+        df.loc[len(df)] = ['F0',crc[2]/1000.0,'GHz','CAM Rotor Rotational Constant']
+        df.loc[len(df)] = ['F0',crc[2]/29979.2458,'cm-1','CAM Rotor Rotational Constant']
 
         reps = { 'Ir' : [1,2,0], 'IIr' : [2,0,1], 'IIIr' : [0,1,2], 'Il' : [2,1,0], 'IIl' : [0,2,1], 'IIIl' : [1,0,2] }
 
         for rep,ax in reps.items():
+            XYZ_rep = rc[ax]
+            BJ = (XYZ_rep[0]+XYZ_rep[1])/2.
+            BK = XYZ_rep[2]+BJ
+            Bm = (XYZ_rep[0]-XYZ_rep[1])/2.
             rho_rep = rho[ax] #rho[0] = rho_a, 1=b, 2=c
             lambda_rep = cpax[:,2][ax] #cpax[0,2] = lambda_a, 1,2 = b, 2,2 = c
             s = np.sign(rho_rep[1])
@@ -472,10 +478,16 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
 
             gamma = np.arccos(rho_rep[0]*s/np.sqrt(rho_rep[0]**2+rho_rep[1]**2))
 
+            df.loc[len(df)] = [f'BJ{rep}',BJ/1000.,'GHz',f'XIAM (Bx+By)/2 ({rep} representation)']
+            df.loc[len(df)] = [f'BK{rep}',BK/1000.,'GHz',f'XIAM Bz+(Bx+By)/2 ({rep} representation)']
+            df.loc[len(df)] = [f'B-{rep}',Bm/1000.,'GHz',f'XIAM (Bx-By)/2 ({rep} representation)']
             df.loc[len(df)] = [f'd{rep}',delta,'rad',f'CAM delta angle ({rep} representation)']
             df.loc[len(df)] = [f'e{rep}',epsilon,'rad',f'CAM epsilon angle ({rep} representation)']
             df.loc[len(df)] = [f'b{rep}',beta,'rad',f'CAM beta angle ({rep} representation)']
             df.loc[len(df)] = [f'g{rep}',gamma,'rad',f'CAM gamma angle ({rep} representation)']
+            df.loc[len(df)] = [f'BJ{rep}',BJ/29979.2458,'cm-1',f'XIAM (Bx+By)/2 ({rep} representation)']
+            df.loc[len(df)] = [f'BK{rep}',BK/29979.2458,'cm-1',f'XIAM Bz+(Bx+By)/2 ({rep} representation)']
+            df.loc[len(df)] = [f'B-{rep}',Bm/29979.2458,'cm-1',f'XIAM (Bx-By)/2 ({rep} representation)']
             df.loc[len(df)] = [f'd{rep}',delta*180/np.pi,'deg',f'CAM delta angle ({rep} representation)']
             df.loc[len(df)] = [f'e{rep}',epsilon*180/np.pi,'deg',f'CAM epsilon angle ({rep} representation)']
             df.loc[len(df)] = [f'b{rep}',beta*180/np.pi,'deg',f'CAM beta angle ({rep} representation)']
@@ -483,13 +495,13 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
 
         if not quiet:
             print('\nRotor Rotational Constants')
-            print(f'A {crc[0]: >12.4f} MHz')
-            print(f'B {crc[1]: >12.4f} MHz')
-            print(f'C {crc[2]: >12.4f} MHz')
+            print(f'A      {crc[0]: >12.4f} MHz')
+            print(f'B      {crc[1]: >12.4f} MHz')
+            print(f'C (F0) {crc[2]: >12.4f} MHz')
             print(f'------------------------')
-            print(f'A {crc[0]/29979.2458: >12.9f} cm-1')
-            print(f'B {crc[1]/29979.2458: >12.9f} cm-1')
-            print(f'C {crc[2]/29979.2458: >12.9f} cm-1')
+            print(f'A      {crc[0]/29979.2458: >12.9f} cm-1')
+            print(f'B      {crc[1]/29979.2458: >12.9f} cm-1')
+            print(f'C (F0) {crc[2]/29979.2458: >12.9f} cm-1')
             print(f'\nI_alpha = {i_alpha:.6f}')
             print('\nRotor Axis')
             print(f'lambda_a   {cpax[0,2]: 10.7f}')
@@ -512,7 +524,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
                     row_str += f'{col: 12.9f} '
                 print(row_str)
 
-            print('\nRho Axis System Parameters')
+            print('\nRho Axis System Parameters (BELGI, RAM36)')
             print(f'rho       {np.sqrt(np.sum(rho**2)): >12.9f}')
             print(f'F         {F: >12.4f} MHz')
             print(f'A_ram     {np.abs(ram_rc[0,0]): >12.4f} MHz')
@@ -530,15 +542,24 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
             print(f'D_bc      {(ram_rc[1,2]+ram_rc[2,1])/29979.2458: >12.9f} cm-1')
             print(f'D_ac      {(ram_rc[0,2]+ram_rc[2,0])/29979.2458: >12.9f} cm-1')
 
-            print('\nCombined Axis System Parameters')
-
+            print('\nCombined Axis System Parameters (XIAM)')
+            print(f'F         {F/1000.: >12.7f} GHz')
+            print(f'F0        {crc[2]/1000.: >12.7f} GHz')
+            print(f'------------------------')
+            print(f'F         {F/29979.2458: >12.9f} cm-1')
+            print(f'F0        {crc[2]/29979.2458: >12.9f} cm-1')
+            print(f'------------------------')
 
             re_reps = [{ 'Ir' : [1,2,0], 'IIr' : [2,0,1], 'IIIr' : [0,1,2]},{'Il' : [2,1,0], 'IIl' : [0,2,1], 'IIIl' : [1,0,2] }]
             for reps in re_reps:
                 print(f'        {list(reps.keys())[0]: ^14} {list(reps.keys())[1]: ^14} {list(reps.keys())[2]: ^14} unit')
-                strs = ['delta   ','epsilon ','beta    ','gamma   ']
+                strs = ['BJ      ','BK      ','B-      ','delta   ','epsilon ','beta    ','gamma   ']
                 strs += strs
                 for rep,ax in reps.items():
+                    XYZ_rep = rc[ax]
+                    BJ = (XYZ_rep[0]+XYZ_rep[1])/2.
+                    BK = XYZ_rep[2]+BJ
+                    Bm = (XYZ_rep[0]-XYZ_rep[1])/2.
                     rho_rep = rho[ax] #rho[0] = rho_a, 1=b, 2=c
                     lambda_rep = cpax[:,2][ax] #cpax[0,2] = lambda_a, 1,2 = b, 2,2 = c
                     s = np.sign(rho_rep[1])
@@ -549,15 +570,25 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
                     epsilon = np.arccos(lambda_rep[0]*s/np.sqrt(lambda_rep[0]**2+lambda_rep[1]**2))
                     beta = np.arccos(rho_rep[2]/la.norm(rho_rep,2))
                     gamma = np.arccos(rho_rep[0]*s/np.sqrt(rho_rep[0]**2+rho_rep[1]**2))
-                    vals = [delta,epsilon,beta,gamma]
+                    vals = [BJ,BK,Bm,delta,epsilon,beta,gamma]
                     for i,v in enumerate(vals):
-                        strs[i] += f'{v: >14.7f} '
-                        strs[4+i] += f'{v*180/np.pi: >14.5f} '
-                for s in strs[0:4]:
+                        if (i % len(vals)) < 3:
+                            strs[i] += f'{v/1000.: >14.7f} '
+                            strs[len(vals)+i] += f'{v/29979.2458: >14.9f} '
+                        else:
+                            strs[i] += f'{v: >14.7f} '
+                            strs[len(vals)+i] += f'{v*180/np.pi: >14.5f} '
+                for s in strs[0:3]:
+                    s +='GHz'
+                    print(s)
+                for s in strs[3:7]:
                     s +='rad'
                     print(s)
                 print('------------------------')
-                for s in strs[4:8]:
+                for s in strs[7:10]:
+                    s +='cm-1'
+                    print(s)
+                for s in strs[10:]:
                     s +='deg'
                     print(s)
                 print('')
@@ -4766,6 +4797,8 @@ if __name__ == '__main__':
                     this_row = [f'{row.param: <10}']
                     if row.unit == 'MHz':
                         this_row += list([ f' {x: >12.4f} ' for x in row[2:2+len(cols)] ])
+                    elif row.unit == 'GHz':
+                        this_row += list([ f' {x: >12.7f} ' for x in row[2:2+len(cols)] ])
                     elif row.unit == 'cm-1':
                         this_row += list([ f' {x: >12.9f} ' for x in row[2:2+len(cols)] ])
                     elif row.unit == 'amu':
