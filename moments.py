@@ -464,7 +464,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         for rep,ax in reps.items():
             XYZ_rep = rc[ax]
             BJ = (XYZ_rep[0]+XYZ_rep[1])/2.
-            BK = XYZ_rep[2]+BJ
+            BK = XYZ_rep[2]-BJ
             Bm = (XYZ_rep[0]-XYZ_rep[1])/2.
             rho_rep = rho[ax] #rho[0] = rho_a, 1=b, 2=c
             lambda_rep = cpax[:,2][ax] #cpax[0,2] = lambda_a, 1,2 = b, 2,2 = c
@@ -479,7 +479,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
             gamma = np.arccos(rho_rep[0]*s/np.sqrt(rho_rep[0]**2+rho_rep[1]**2))
 
             df.loc[len(df)] = [f'BJ{rep}',BJ/1000.,'GHz',f'XIAM (Bx+By)/2 ({rep} representation)']
-            df.loc[len(df)] = [f'BK{rep}',BK/1000.,'GHz',f'XIAM Bz+(Bx+By)/2 ({rep} representation)']
+            df.loc[len(df)] = [f'BK{rep}',BK/1000.,'GHz',f'XIAM Bz-(Bx+By)/2 ({rep} representation)']
             df.loc[len(df)] = [f'B-{rep}',Bm/1000.,'GHz',f'XIAM (Bx-By)/2 ({rep} representation)']
             df.loc[len(df)] = [f'd{rep}',delta,'rad',f'CAM delta angle ({rep} representation)']
             df.loc[len(df)] = [f'e{rep}',epsilon,'rad',f'CAM epsilon angle ({rep} representation)']
@@ -558,7 +558,7 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
                 for rep,ax in reps.items():
                     XYZ_rep = rc[ax]
                     BJ = (XYZ_rep[0]+XYZ_rep[1])/2.
-                    BK = XYZ_rep[2]+BJ
+                    BK = XYZ_rep[2]-BJ
                     Bm = (XYZ_rep[0]-XYZ_rep[1])/2.
                     rho_rep = rho[ax] #rho[0] = rho_a, 1=b, 2=c
                     lambda_rep = cpax[:,2][ax] #cpax[0,2] = lambda_a, 1,2 = b, 2,2 = c
