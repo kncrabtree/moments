@@ -443,8 +443,6 @@ def moments_calc(xyzfile,rotor_atoms=None,isotopes=None,quiet=False,noplots=Fals
         r = 1-i_alpha*(np.sum(rotor_axis**2/pmoi))
         F = amuMHz/r/i_alpha
         
-        print(-np.arctan2(rotor_axis[1],rotor_axis[0])*180/np.pi-90)
-    
 
         rho_norm = rho/np.sqrt(np.sum(rho**2))
         #rot_vec = np.cross(np.asarray([1,0,0]),rho_norm)
@@ -4725,6 +4723,10 @@ if __name__ == '__main__':
         else:
             basename = name
 
+        # Ensure basename has no file extension when used for batch folder output
+        if args.boutfolder and '.' in basename and basename.rsplit('.', 1)[-1].lower() not in ['xyz', '']:
+            basename = basename.rsplit('.', 1)[0]
+
         if args.boutfile is None:
             boutfile = basename+'-all.csv'
         else:
@@ -4750,9 +4752,12 @@ if __name__ == '__main__':
             else:
                 pfbase = str(p / basename)
             
-        of = ofbase + '1.csv' if ofbase else None
-        pf = ofbase + '1' if pfbase else None
-        
+        # Strip extension and add numbering using Path for consistent behavior
+        if ofbase:
+            of = str(p / f'{Path(ofbase).stem}1.csv')
+        if pfbase:
+            pf = str(p / f'{Path(pfbase).stem}1.png')
+
         df,figs,_ = moments_calc(args.filename,
                      rotor_atoms=rotor_atoms,
                      isotopes=None,
@@ -4768,8 +4773,8 @@ if __name__ == '__main__':
         for f in figs:
             plt.close(f)
         for n,i in enumerate(isotopes):
-            of = ofbase + f'{n+2}.csv' if ofbase else None
-            pf = ofbase + f'{n+2}' if pfbase else None
+            of = str(p / f'{Path(ofbase).stem}{n+2}.csv') if ofbase else None
+            pf = str(p / f'{Path(pfbase).stem}{n+2}.png') if pfbase else None
             df,figs,_ = moments_calc(args.filename,
                      rotor_atoms=rotor_atoms,
                      isotopes=i,
